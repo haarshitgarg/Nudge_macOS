@@ -63,6 +63,13 @@
 			);
 			target = E414C9E72E02EC7900DC57AA /* NudgeHelper */;
 		};
+		E414CA0A2E02FE8700DC57AA /* Exceptions for "NudgeHelper" folder in "Nudge_macOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				NudgeHelperProtocol.swift,
+			);
+			target = E414C9A22E02E85D00DC57AA /* Nudge_macOS */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -84,6 +91,7 @@
 		E414C9E92E02EC7900DC57AA /* NudgeHelper */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				E414CA0A2E02FE8700DC57AA /* Exceptions for "NudgeHelper" folder in "Nudge_macOS" target */,
 				E414C9F52E02EC7900DC57AA /* Exceptions for "NudgeHelper" folder in "NudgeHelper" target */,
 			);
 			path = NudgeHelper;
