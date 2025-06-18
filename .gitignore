@@ -1,0 +1,64 @@
+# macOS System files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+build/
+DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+xcuserdata/
+*.xcscmblueprint
+
+# SwiftPM
+.swiftpm/
+.build/
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Xcode generated docs
+*.docc-build/
+
+# App artifacts
+*.xcarchive
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Package managers (optional, include if used)
+# CocoaPods
+Pods/
+Podfile.lock
+
+# Carthage
+Carthage/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+# SPM dependency cache
+Package.resolved
+
+# User settings
+*.xcuserstate
+*.xcuserdatad
+
+# Crash reports
+*.crash
+*.xcresult
+
+# Logs
+*.log
+
+# Temporary files
+*.swp
+*.swo
+*~
