@@ -25,8 +25,8 @@ class ChatViewModel: ObservableObject {
         } catch { os_log("Failed to connect to NudgeClient: %@", log: log, type: .fault, error.localizedDescription) }
     }
     
-    public func fetchMessages() async throws {
-        let reply = try await nudgeClient.sendMessage(message: "Sending dummy Message")
+    public func sendMessage(_ msg: String) async throws {
+        let reply = try await nudgeClient.sendMessage(message: msg)
         self.xcpMessage.append(XPCMessage(content: reply))
     }
     
@@ -38,11 +38,6 @@ class ChatViewModel: ObservableObject {
 extension ChatViewModel: NudgeDelegateProtocol {
     func notifyShortcutPressed() {
         os_log("Shortcut pressed notification received in ChatViewModel", log: log, type: .info)
-        
-    }
-    
-    func askForAccessibilityPermission() {
-        os_log("Requesting accessibility permission in ChatViewModel", log: log, type: .info)
     }
 }
 

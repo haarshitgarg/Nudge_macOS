@@ -6,12 +6,12 @@
 //
 
 import Foundation
+import ApplicationServices
 import os
 
 @MainActor
 protocol NudgeDelegateProtocol {
     func notifyShortcutPressed()
-    func askForAccessibilityPermission()
 }
 
 
@@ -103,10 +103,6 @@ extension NudgeClient: NudgeClientProtocol {
     func notifyShortcutPressed() {
         os_log("Keyboard shortcut pressed, Opening chat panel...", log: log, type: .info)
         // Toggle open chat panel here later
-    }
-    
-    func askForAccessibilityPermission() {
-        os_log("Asking for accessibility permission...", log: log, type: .info)
     }
     
 }

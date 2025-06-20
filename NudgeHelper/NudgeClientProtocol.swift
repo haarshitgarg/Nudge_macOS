@@ -10,5 +10,4 @@ import os
 
 @objc public protocol NudgeClientProtocol {
     func notifyShortcutPressed()
-    func askForAccessibilityPermission()
 }

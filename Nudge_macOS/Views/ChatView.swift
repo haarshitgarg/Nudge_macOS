@@ -32,6 +32,17 @@ struct ChatView: View {
                 TextField("Type to Nudge", text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 20))
+                    .onSubmit {
+                        DispatchQueue.main.async {
+                            let message = query
+                            query = ""
+                            Task {
+                                do { try await self.chatViewModel.sendMessage(message)
+                                } catch { os_log("Failed to send message: %@", log: log, type: .fault, error.localizedDescription) }
+                            }
+                        }
+
+                    }
 
                 Button(action: {
                     // Handle speech action

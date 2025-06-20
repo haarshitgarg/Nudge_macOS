@@ -43,6 +43,10 @@ class NudgeHelper: NSObject, NudgeHelperProtocol {
     
     private func processMessaage(_ message: String) -> String {
         sleep(5) // Simulating some processing delay
+        if !ShortcutManager.shared.isTrusted() {
+            os_log("Process is not trusted for accessibility. Cannot process message.", log: log, type: .error)
+            return "Error: Process is not trusted for accessibility."
+        }
         let processedMessge = message + " - Processed by NudgeHelper"
         return processedMessge
     }

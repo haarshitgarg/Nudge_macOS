@@ -10,11 +10,16 @@ import SwiftUI
 @main
 struct Nudge_macOSApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
+    @StateObject private var chatViewModel = ChatViewModel.shared
 
     var body: some Scene {
+        
         MenuBarExtra("Nudge", systemImage: "sparkles") {
             ContentView()
         }
+        
+        
     }
 }
 
