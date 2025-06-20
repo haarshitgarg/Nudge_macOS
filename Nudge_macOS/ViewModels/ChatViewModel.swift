@@ -18,6 +18,7 @@ class ChatViewModel: ObservableObject {
     
     @Published public var xcpMessage: [XPCMessage] = []
     @Published public var isChatVisible: Bool = false
+    @Published public var isAccessibleDialog: Bool = false
     
     private init() {
         do { try nudgeClient.connect()
@@ -31,6 +32,17 @@ class ChatViewModel: ObservableObject {
     
     deinit {
         os_log("ChatViewModel is being deinitialized", log: log, type: .debug)
+    }
+}
+
+extension ChatViewModel: NudgeDelegateProtocol {
+    func notifyShortcutPressed() {
+        os_log("Shortcut pressed notification received in ChatViewModel", log: log, type: .info)
+        
+    }
+    
+    func askForAccessibilityPermission() {
+        os_log("Requesting accessibility permission in ChatViewModel", log: log, type: .info)
     }
 }
 

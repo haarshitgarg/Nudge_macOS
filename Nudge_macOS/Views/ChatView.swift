@@ -10,9 +10,9 @@ import os
 
 struct ChatView: View {
     @State private var query: String = ""
-    @State private var isAnimating: Bool = false
     @State private var animationTimer: Timer?
     @State private var animationCount: Int = 0
+    @State private var animationPhase: Int = 0
     @StateObject private var chatViewModel: ChatViewModel = ChatViewModel.shared
     
     private let maxAnimationCount: Int = 5
@@ -26,8 +26,8 @@ struct ChatView: View {
                 Image(systemName: "sparkles")
                     .font(.title2)
                     .foregroundColor(.accentColor)
-                    .scaleEffect(isAnimating ? 1.2 : 1.0)
-                    .rotationEffect(.degrees(isAnimating ? 15 : 0))
+                    .scaleEffect(animationPhase == 1 ? 1.2 : 1.0)
+                    .rotationEffect(.degrees(animationPhase == 1 ? 15 : 0))
 
                 TextField("Type to Nudge", text: $query)
                     .textFieldStyle(.plain)
@@ -66,7 +66,7 @@ struct ChatView: View {
                         ),
                         lineWidth: 3
                     )
-                    .blur(radius: isAnimating ? 8 : 4)
+                    .blur(radius: animationPhase == 1 ? 8 : 4)
             )
             .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
 
@@ -84,7 +84,7 @@ struct ChatView: View {
             .background(.regularMaterial, in: Capsule())
         }
         .padding()
-        .scaleEffect(isAnimating ? 1.01 : 1.0)
+        .scaleEffect(animationPhase == 1 ? 1.01 : 1.0)
         .onReceive(chatViewModel.$isChatVisible) { isVisible in
             if isVisible {
                 startAnimation()
@@ -93,12 +93,10 @@ struct ChatView: View {
             }
         }
         
-        
     }
     
     public func startAnimation() {
         os_log("Starting animation", log: log, type: .debug)
-        isAnimating = true
         animationCount = 0
         animationTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { _ in
             animationCount += 1
@@ -106,14 +104,14 @@ struct ChatView: View {
                 stopAnimation()
             }
             withAnimation(.easeInOut(duration: 1.25)) {
-                isAnimating.toggle()
+                animationPhase = animationPhase % 2 == 0 ? 1 : 0
             }
         }
     }
     
     public func stopAnimation() {
         os_log("Stopping animation", log: log, type: .debug)
-        isAnimating = false
+        animationPhase = 0
         animationTimer?.invalidate()
         animationTimer = nil
     }
