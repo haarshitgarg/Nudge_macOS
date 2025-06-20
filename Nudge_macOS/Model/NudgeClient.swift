@@ -8,13 +8,12 @@
 import Foundation
 import os
 
-class NudgeClient {
-    public static let shared = NudgeClient()
+class NudgeClient: NSObject {
     private var connection: NSXPCConnection?
     
     private let log = OSLog(subsystem: "Harshit.NudgeClient", category: "NudgeClient")
     
-    private init() {
+    override init() {
         
     }
     
@@ -29,17 +28,31 @@ class NudgeClient {
             os_log("Failed to create NSXPCConnection", log: log, type: .error)
             throw NudgeError.connectionFailed
         }
-        connection.remoteObjectInterface = NSXPCInterface(with: NudgeHelperProtocol.self)
-        connection.exportedInterface = NSXPCInterface(with: NudgeClientProtocol.self)
-        connection.exportedObject = self
         
+        let helperInterface = NSXPCInterface(with: NudgeHelperProtocol.self)
+        let clientInterface = NSXPCInterface(with: NudgeClientProtocol.self)
+        helperInterface.setInterface(clientInterface, for: #selector(NudgeHelperProtocol.setClient(_:)), argumentIndex: 0, ofReply: false)
+        
+        connection.remoteObjectInterface = helperInterface
+        connection.exportedInterface = clientInterface
+        connection.exportedObject = self
         connection.resume()
         
-//        let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-//            os_log("Error occurred while connecting to NudgeHelper: %@", log: self.log, type: .error, error.localizedDescription)
-//        } as? NudgeHelperProtocol
-//        proxy?.setClient(self.xpcResponseClient)
         os_log("Connected to NudgeHelper service", log: log, type: .info)
+        
+        registerClient()
+    }
+    
+    public func registerClient() {
+        guard let connection = connection else {
+            os_log("Connection is not established", log: log, type: .error)
+            return
+        }
+        let helper = connection.remoteObjectProxyWithErrorHandler { error in
+            os_log("Error occurred while registering client: %@", log: self.log, type: .error, error.localizedDescription)
+        } as? NudgeHelperProtocol
+        
+        helper?.setClient(self)
     }
     
     public func sendMessage(message: String) async throws -> String {
@@ -61,6 +74,20 @@ class NudgeClient {
         
         return reply;
         
+    }
+
+    deinit {
+        os_log("NudgeClient is being deinitialized", log: log, type: .debug)
+        let proxy = connection?.remoteObjectProxyWithErrorHandler { error in
+            os_log("Error occurred while disconnecting: %@", log: self.log, type: .error, error.localizedDescription)
+        } as? NudgeHelperProtocol
+        proxy?.terminate()
+        self.disconnect()
+    }
+    
+    public func disconnect() {
+        os_log("Disconnecting from NudgeHelper service...", log: log, type: .debug)
+        self.connection?.invalidate()
     }
     
 }

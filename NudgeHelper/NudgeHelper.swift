@@ -35,11 +35,26 @@ class NudgeHelper: NSObject, NudgeHelperProtocol {
         os_log("Client set for NudgeHelper", log: log, type: .info)
         self.client = client
     }
+
+    @objc func terminate() {
+        os_log("Terminating NudgeHelper", log: log, type: .info)
+        self.client = nil
+    }
     
     private func processMessaage(_ message: String) -> String {
         sleep(5) // Simulating some processing delay
         let processedMessge = message + " - Processed by NudgeHelper"
         return processedMessge
+    }
+    
+    private func sendShortCutPressedNotification() {
+        os_log("Sending shortcut pressed notification", log: log, type: .info)
+        client?.notifyShortcutPressed()
+    }
+    
+    deinit {
+        os_log("NudgeHelper is being deinitialized", log: log, type: .debug)
+        self.client = nil
     }
     
 }

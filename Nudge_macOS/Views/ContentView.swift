@@ -9,7 +9,7 @@ import SwiftUI
 import os
 
 struct ContentView: View {
-    @StateObject private var viewModel = ChatViewModel()
+    @StateObject private var viewModel = ChatViewModel.shared
     
     private let log = OSLog(subsystem: "com.harshitgarg.Nudge_macOS", category: "ContentView")
     
@@ -21,7 +21,9 @@ struct ContentView: View {
         }
         .padding()
         .frame(width: 200, height: 100)
+        
     }
+
 }
 
 #Preview {

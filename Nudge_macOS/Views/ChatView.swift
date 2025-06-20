@@ -11,6 +11,11 @@ import os
 struct ChatView: View {
     @State private var query: String = ""
     @State private var isAnimating: Bool = false
+    @State private var animationTimer: Timer?
+    @State private var animationCount: Int = 0
+    @StateObject private var chatViewModel: ChatViewModel = ChatViewModel.shared
+    
+    private let maxAnimationCount: Int = 5
     
     private let log = OSLog(subsystem: "com.harshitgarg.Nudge", category: "ChatView")
 
@@ -80,11 +85,37 @@ struct ChatView: View {
         }
         .padding()
         .scaleEffect(isAnimating ? 1.01 : 1.0)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 2.5).repeatForever(autoreverses: true)) {
-                isAnimating = true
+        .onReceive(chatViewModel.$isChatVisible) { isVisible in
+            if isVisible {
+                startAnimation()
+            } else {
+                stopAnimation()
             }
         }
+        
+        
+    }
+    
+    public func startAnimation() {
+        os_log("Starting animation", log: log, type: .debug)
+        isAnimating = true
+        animationCount = 0
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { _ in
+            animationCount += 1
+            if animationCount > maxAnimationCount {
+                stopAnimation()
+            }
+            withAnimation(.easeInOut(duration: 1.25)) {
+                isAnimating.toggle()
+            }
+        }
+    }
+    
+    public func stopAnimation() {
+        os_log("Stopping animation", log: log, type: .debug)
+        isAnimating = false
+        animationTimer?.invalidate()
+        animationTimer = nil
     }
 }
 

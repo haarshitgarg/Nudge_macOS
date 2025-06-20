@@ -10,13 +10,16 @@ import os
 
 @MainActor
 class ChatViewModel: ObservableObject {
+    public static let shared = ChatViewModel()
+    
     let log = OSLog(subsystem: "com.harshitgarg.nudge", category: "ChatViewModel")
     
-    private var nudgeClient = NudgeClient.shared
+    public let nudgeClient = NudgeClient()
     
     @Published public var xcpMessage: [XPCMessage] = []
+    @Published public var isChatVisible: Bool = false
     
-    init() {
+    private init() {
         do { try nudgeClient.connect()
         } catch { os_log("Failed to connect to NudgeClient: %@", log: log, type: .fault, error.localizedDescription) }
     }
@@ -25,4 +28,9 @@ class ChatViewModel: ObservableObject {
         let reply = try await nudgeClient.sendMessage(message: "Sending dummy Message")
         self.xcpMessage.append(XPCMessage(content: reply))
     }
+    
+    deinit {
+        os_log("ChatViewModel is being deinitialized", log: log, type: .debug)
+    }
 }
+

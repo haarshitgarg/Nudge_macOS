@@ -15,6 +15,9 @@ import Foundation
     
     // Function to set the client that will be used by the service
     func setClient(_ nudgeClient: NudgeClientProtocol)
+
+    // Function to clean up the service
+    func terminate()
 }
 
 /*

@@ -1,6 +1,9 @@
 import SwiftUI
+import os
 
 class FloatingPanel: NSPanel {
+    private let log = OSLog(subsystem: "com.harshitgarg.Nudge_macOS", category: "FloatingPanel")
+    
     init(contentView: AnyView) {
         super.init(
             contentRect: .zero,
@@ -11,7 +14,7 @@ class FloatingPanel: NSPanel {
 
         // Allow the panel to float over all other windows, including fullscreen apps
         self.isFloatingPanel = true
-        self.level = .screenSaver
+        self.level = .floating
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         // Make the panel transparent
@@ -26,4 +29,10 @@ class FloatingPanel: NSPanel {
     override var canBecomeKey: Bool {
         return true
     }
-} 
+    
+    deinit {
+        // Clean up resources if needed
+        os_log("FloatingPanel is being deinitialized", log: log, type: .debug)
+        self.contentView = nil
+    }
+}

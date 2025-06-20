@@ -11,10 +11,18 @@ class ServiceDelegate: NSObject, NSXPCListenerDelegate {
     
     /// This method is where the NSXPCListener configures, accepts, and resumes a new incoming NSXPCConnection.
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection newConnection: NSXPCConnection) -> Bool {
+        let interface = NSXPCInterface(with: NudgeHelperProtocol.self)
         
         // Configure the connection.
         // First, set the interface that the exported object implements.
-        newConnection.exportedInterface = NSXPCInterface(with: (any NudgeHelperProtocol).self)
+        interface.setInterface(
+            NSXPCInterface(with: NudgeClientProtocol.self),
+            for: #selector(NudgeHelperProtocol.setClient(_:)),
+            argumentIndex: 0,
+            ofReply: false
+        )
+        
+        newConnection.exportedInterface = interface
         
         // Next, set the object that the connection exports. All messages sent on the connection to this service will be sent to the exported object to handle. The connection retains the exported object.
         let exportedObject = NudgeHelper()

@@ -27,4 +27,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         return false
     }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        PanelManager.shared.cleanup()
+    }
 }

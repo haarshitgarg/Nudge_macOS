@@ -1,8 +1,13 @@
 import SwiftUI
+import os
 
 class PanelManager {
     static let shared = PanelManager()
     private var panel: FloatingPanel?
+    private let log = OSLog(subsystem: "com.harshitgarg.Nudge_macOS", category: "PanelManager")
+    
+    @MainActor
+    private let chatviewmodel_instance = ChatViewModel.shared
 
     private init() {}
 
@@ -24,10 +29,16 @@ class PanelManager {
         }
         
         panel?.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async {
+            self.chatviewmodel_instance.isChatVisible = true
+        }
     }
 
     func hidePanel() {
         panel?.orderOut(nil)
+        DispatchQueue.main.async {
+            self.chatviewmodel_instance.isChatVisible = false
+        }
     }
     
     func togglePanel() {
@@ -37,4 +48,12 @@ class PanelManager {
             showPanel()
         }
     }
-} 
+
+    func cleanup() {
+        os_log("Cleaning up panel resources", log: log, type: .debug)
+        panel?.orderOut(nil)
+        panel?.close()
+        panel = nil
+        
+    }
+}
