@@ -21,6 +21,6 @@ struct Nudge_macOSApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // You can show the panel on launch if you want
-        // PanelManager.shared.showPanel()
+        PanelManager.shared.showPanel()
     }
 }

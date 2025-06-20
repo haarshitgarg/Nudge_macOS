@@ -6,10 +6,13 @@
 //
 
 import SwiftUI
+import os
 
 struct ChatView: View {
     @State private var query: String = ""
     @State private var isAnimating: Bool = false
+    
+    private let log = OSLog(subsystem: "com.harshitgarg.Nudge", category: "ChatView")
 
     var body: some View {
         VStack(spacing: 16) {
@@ -25,9 +28,15 @@ struct ChatView: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 20))
 
-                Image(systemName: "mic.fill")
-                    .font(.title2)
-                    .foregroundColor(.secondary)
+                Button(action: {
+                    // Handle speech action
+                    os_log("Not implemented yet", log: log, type: .debug)
+                }) {
+                    Image(systemName: "mic.fill")
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -61,7 +70,7 @@ struct ChatView: View {
                 Image(systemName: "sparkles")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                Text("What can I do in Safari?")
+                Text("How to open extensions in safari?")
                     .font(.callout)
                     .foregroundColor(.secondary)
             }
