@@ -15,31 +15,12 @@ struct ContentView: View {
     
     var body: some View {
         VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-            List {
-                ForEach(viewModel.xcpMessage, id: \.id) { message in
-                    Text("\(message.content) at \(message.timestamp, formatter: DateFormatter())")
-                        .padding()
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(8)
-                }
-            }
-            
-            Button("Send Message") {
-                os_log("Button tapped to send message", log: log, type: .info)
-                Task {
-                    do {
-                        try await viewModel.fetchMessages()
-                    } catch {
-                        os_log("Failed to send message: %@", log: log, type: .error, error.localizedDescription)
-                    }
-                }
+            Button("Toggle Chat Window") {
+                PanelManager.shared.togglePanel()
             }
         }
         .padding()
+        .frame(width: 200, height: 100)
     }
 }
 

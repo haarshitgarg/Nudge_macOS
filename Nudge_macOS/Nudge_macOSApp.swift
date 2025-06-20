@@ -9,9 +9,18 @@ import SwiftUI
 
 @main
 struct Nudge_macOSApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     var body: some Scene {
-        WindowGroup {
+        MenuBarExtra("Nudge", systemImage: "sparkles") {
             ContentView()
         }
+    }
+}
+
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // You can show the panel on launch if you want
+        // PanelManager.shared.showPanel()
     }
 }
