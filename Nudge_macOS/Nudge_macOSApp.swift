@@ -23,4 +23,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // You can show the panel on launch if you want
         PanelManager.shared.showPanel()
     }
+    
+    func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+        return false
+    }
 }

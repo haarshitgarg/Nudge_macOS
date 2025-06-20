@@ -66,6 +66,7 @@
 		E414CA0A2E02FE8700DC57AA /* Exceptions for "NudgeHelper" folder in "Nudge_macOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				NudgeClientProtocol.swift,
 				NudgeHelperProtocol.swift,
 			);
 			target = E414C9A22E02E85D00DC57AA /* Nudge_macOS */;

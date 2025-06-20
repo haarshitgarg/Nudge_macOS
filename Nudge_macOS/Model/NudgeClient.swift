@@ -9,8 +9,8 @@ import Foundation
 import os
 
 class NudgeClient {
+    public static let shared = NudgeClient()
     private var connection: NSXPCConnection?
-    public static let shared: NudgeClient = NudgeClient()
     
     private let log = OSLog(subsystem: "Harshit.NudgeClient", category: "NudgeClient")
     
@@ -18,15 +18,27 @@ class NudgeClient {
         
     }
     
-    public func connect() {
+    public func connect() throws {
         os_log("Connecting to NudgeHelper service...", log: log, type: .debug)
         if connection != nil {
             os_log("Already connected to NudgeHelper service", log: log, type: .info)
             return
         }
         connection = NSXPCConnection(serviceName: "Harshit.NudgeHelper")
-        connection?.remoteObjectInterface = NSXPCInterface(with: NudgeHelperProtocol.self)
-        connection?.resume()
+        guard let connection = connection else {
+            os_log("Failed to create NSXPCConnection", log: log, type: .error)
+            throw NudgeError.connectionFailed
+        }
+        connection.remoteObjectInterface = NSXPCInterface(with: NudgeHelperProtocol.self)
+        connection.exportedInterface = NSXPCInterface(with: NudgeClientProtocol.self)
+        connection.exportedObject = self
+        
+        connection.resume()
+        
+//        let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+//            os_log("Error occurred while connecting to NudgeHelper: %@", log: self.log, type: .error, error.localizedDescription)
+//        } as? NudgeHelperProtocol
+//        proxy?.setClient(self.xpcResponseClient)
         os_log("Connected to NudgeHelper service", log: log, type: .info)
     }
     
@@ -51,4 +63,11 @@ class NudgeClient {
         
     }
     
+}
+
+extension NudgeClient: NudgeClientProtocol {
+    func notifyShortcutPressed() {
+        os_log("Keyboard shortcut pressed, Opening chat panel...", log: log, type: .info)
+        // Toggle open chat panel here later
+    }
 }

@@ -13,6 +13,8 @@ import Foundation
     // Function to send the chat message by user to NudgeHelper
     func sendChatMessage(message: String, with reply: @escaping (String) -> Void)
     
+    // Function to set the client that will be used by the service
+    func setClient(_ nudgeClient: NudgeClientProtocol)
 }
 
 /*

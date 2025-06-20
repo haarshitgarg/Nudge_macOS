@@ -6,40 +6,23 @@
 //
 
 import Foundation
+import os
 
 @MainActor
 class ChatViewModel: ObservableObject {
+    let log = OSLog(subsystem: "com.harshitgarg.nudge", category: "ChatViewModel")
+    
     private var nudgeClient = NudgeClient.shared
-    private var shortcutManager = ShortcutManager.shared
-    private var delegateID: UUID? = nil
     
     @Published public var xcpMessage: [XPCMessage] = []
     
     init() {
-        nudgeClient.connect()
-        self.delegateID = shortcutManager.addDelegate(self)
-    }
-    
-    deinit {
-        guard let delegateID = self.delegateID else {
-            return
-        }
-        shortcutManager.removeDelegate(delegateID)
+        do { try nudgeClient.connect()
+        } catch { os_log("Failed to connect to NudgeClient: %@", log: log, type: .fault, error.localizedDescription) }
     }
     
     public func fetchMessages() async throws {
         let reply = try await nudgeClient.sendMessage(message: "Sending dummy Message")
         self.xcpMessage.append(XPCMessage(content: reply))
     }
-    
 }
-
-// Making chat view model as a delegate for ShortcutManager
-extension ChatViewModel: ShortcutManagerDelegateProtocol {
-    nonisolated func userRequestedToggleChat() {
-        DispatchQueue.main.async {
-            PanelManager.shared.togglePanel()
-        }
-    }
-}
-    

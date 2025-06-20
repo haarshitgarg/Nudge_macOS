@@ -13,6 +13,7 @@ class NudgeHelper: NSObject, NudgeHelperProtocol {
     private let log = OSLog(subsystem: "Harshit.NudgeHelper", category: "NudgeHelper")
     
     private let messageQueue = DispatchQueue(label: "com.harshit.nudgehelper.messagequeue", qos: .userInitiated, attributes: .concurrent)
+    private var client: NudgeClientProtocol? = nil
     
     override init() {
         super.init()
@@ -29,6 +30,12 @@ class NudgeHelper: NSObject, NudgeHelperProtocol {
         }
     }
     
+    @objc func setClient(_ client: NudgeClientProtocol) {
+        // This method can be used to set the client if needed
+        os_log("Client set for NudgeHelper", log: log, type: .info)
+        self.client = client
+    }
+    
     private func processMessaage(_ message: String) -> String {
         sleep(5) // Simulating some processing delay
         let processedMessge = message + " - Processed by NudgeHelper"
@@ -36,3 +43,4 @@ class NudgeHelper: NSObject, NudgeHelperProtocol {
     }
     
 }
+
