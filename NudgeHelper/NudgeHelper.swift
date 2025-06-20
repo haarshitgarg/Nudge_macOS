@@ -14,6 +14,11 @@ class NudgeHelper: NSObject, NudgeHelperProtocol {
     
     private let messageQueue = DispatchQueue(label: "com.harshit.nudgehelper.messagequeue", qos: .userInitiated, attributes: .concurrent)
     
+    override init() {
+        super.init()
+        os_log("NudgeHelper initialized", log: log, type: .info)
+    }
+    
     @objc func sendChatMessage(message: String, with reply: @escaping (String) -> Void) {
         // Handle the chat message here
         os_log("Received chat message: %@", log: log, type: .info, message)
