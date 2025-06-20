@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		E414C9F42E02EC7900DC57AA /* NudgeHelper.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = E414C9E82E02EC7900DC57AA /* NudgeHelper.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		E414C9B22E02E85E00DC57AA /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,13 +25,52 @@
 			remoteGlobalIDString = E414C9A22E02E85D00DC57AA;
 			remoteInfo = Nudge_macOS;
 		};
+		E414C9F22E02EC7900DC57AA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E414C99B2E02E85D00DC57AA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E414C9E72E02EC7900DC57AA;
+			remoteInfo = NudgeHelper;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		E414C9F92E02EC7900DC57AA /* Embed XPC Services */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/XPCServices";
+			dstSubfolderSpec = 16;
+			files = (
+				E414C9F42E02EC7900DC57AA /* NudgeHelper.xpc in Embed XPC Services */,
+			);
+			name = "Embed XPC Services";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		E414C9A32E02E85D00DC57AA /* Nudge_macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Nudge_macOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E414C9B12E02E85E00DC57AA /* Nudge_macOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Nudge_macOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E414C9BB2E02E85E00DC57AA /* Nudge_macOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Nudge_macOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E414C9E82E02EC7900DC57AA /* NudgeHelper.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = NudgeHelper.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E414C9F52E02EC7900DC57AA /* Exceptions for "NudgeHelper" folder in "NudgeHelper" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = E414C9E72E02EC7900DC57AA /* NudgeHelper */;
+		};
+		E414CA0A2E02FE8700DC57AA /* Exceptions for "NudgeHelper" folder in "Nudge_macOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				NudgeHelperProtocol.swift,
+			);
+			target = E414C9A22E02E85D00DC57AA /* Nudge_macOS */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E414C9A52E02E85D00DC57AA /* Nudge_macOS */ = {
@@ -43,6 +86,15 @@
 		E414C9BE2E02E85E00DC57AA /* Nudge_macOSUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Nudge_macOSUITests;
+			sourceTree = "<group>";
+		};
+		E414C9E92E02EC7900DC57AA /* NudgeHelper */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E414CA0A2E02FE8700DC57AA /* Exceptions for "NudgeHelper" folder in "Nudge_macOS" target */,
+				E414C9F52E02EC7900DC57AA /* Exceptions for "NudgeHelper" folder in "NudgeHelper" target */,
+			);
+			path = NudgeHelper;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -69,6 +121,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E414C9E52E02EC7900DC57AA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -78,6 +137,7 @@
 				E414C9A52E02E85D00DC57AA /* Nudge_macOS */,
 				E414C9B42E02E85E00DC57AA /* Nudge_macOSTests */,
 				E414C9BE2E02E85E00DC57AA /* Nudge_macOSUITests */,
+				E414C9E92E02EC7900DC57AA /* NudgeHelper */,
 				E414C9A42E02E85D00DC57AA /* Products */,
 			);
 			sourceTree = "<group>";
@@ -88,6 +148,7 @@
 				E414C9A32E02E85D00DC57AA /* Nudge_macOS.app */,
 				E414C9B12E02E85E00DC57AA /* Nudge_macOSTests.xctest */,
 				E414C9BB2E02E85E00DC57AA /* Nudge_macOSUITests.xctest */,
+				E414C9E82E02EC7900DC57AA /* NudgeHelper.xpc */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -102,10 +163,12 @@
 				E414C99F2E02E85D00DC57AA /* Sources */,
 				E414C9A02E02E85D00DC57AA /* Frameworks */,
 				E414C9A12E02E85D00DC57AA /* Resources */,
+				E414C9F92E02EC7900DC57AA /* Embed XPC Services */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				E414C9F32E02EC7900DC57AA /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				E414C9A52E02E85D00DC57AA /* Nudge_macOS */,
@@ -163,6 +226,28 @@
 			productReference = E414C9BB2E02E85E00DC57AA /* Nudge_macOSUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		E414C9E72E02EC7900DC57AA /* NudgeHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E414C9F62E02EC7900DC57AA /* Build configuration list for PBXNativeTarget "NudgeHelper" */;
+			buildPhases = (
+				E414C9E42E02EC7900DC57AA /* Sources */,
+				E414C9E52E02EC7900DC57AA /* Frameworks */,
+				E414C9E62E02EC7900DC57AA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				E414C9E92E02EC7900DC57AA /* NudgeHelper */,
+			);
+			name = NudgeHelper;
+			packageProductDependencies = (
+			);
+			productName = NudgeHelper;
+			productReference = E414C9E82E02EC7900DC57AA /* NudgeHelper.xpc */;
+			productType = "com.apple.product-type.xpc-service";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +269,9 @@
 						CreatedOnToolsVersion = 16.4;
 						TestTargetID = E414C9A22E02E85D00DC57AA;
 					};
+					E414C9E72E02EC7900DC57AA = {
+						CreatedOnToolsVersion = 16.4;
+					};
 				};
 			};
 			buildConfigurationList = E414C99E2E02E85D00DC57AA /* Build configuration list for PBXProject "Nudge_macOS" */;
@@ -203,6 +291,7 @@
 				E414C9A22E02E85D00DC57AA /* Nudge_macOS */,
 				E414C9B02E02E85E00DC57AA /* Nudge_macOSTests */,
 				E414C9BA2E02E85E00DC57AA /* Nudge_macOSUITests */,
+				E414C9E72E02EC7900DC57AA /* NudgeHelper */,
 			);
 		};
 /* End PBXProject section */
@@ -223,6 +312,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E414C9B92E02E85E00DC57AA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E414C9E62E02EC7900DC57AA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -253,6 +349,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E414C9E42E02EC7900DC57AA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -265,6 +368,11 @@
 			isa = PBXTargetDependency;
 			target = E414C9A22E02E85D00DC57AA /* Nudge_macOS */;
 			targetProxy = E414C9BC2E02E85E00DC57AA /* PBXContainerItemProxy */;
+		};
+		E414C9F32E02EC7900DC57AA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E414C9E72E02EC7900DC57AA /* NudgeHelper */;
+			targetProxy = E414C9F22E02EC7900DC57AA /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -402,6 +510,8 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -429,6 +539,8 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -511,6 +623,52 @@
 			};
 			name = Release;
 		};
+		E414C9F72E02EC7900DC57AA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = NudgeHelper/NudgeHelper.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9WS6268AT2;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NudgeHelper/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = NudgeHelper;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Harshit.NudgeHelper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		E414C9F82E02EC7900DC57AA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = NudgeHelper/NudgeHelper.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9WS6268AT2;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NudgeHelper/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = NudgeHelper;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Harshit.NudgeHelper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -546,6 +704,15 @@
 			buildConfigurations = (
 				E414C9CC2E02E85E00DC57AA /* Debug */,
 				E414C9CD2E02E85E00DC57AA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E414C9F62E02EC7900DC57AA /* Build configuration list for PBXNativeTarget "NudgeHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E414C9F72E02EC7900DC57AA /* Debug */,
+				E414C9F82E02EC7900DC57AA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
