@@ -18,7 +18,7 @@ protocol NudgeDelegateProtocol {
 class NudgeClient: NSObject {
     private var connection: NSXPCConnection?
     
-    private let log = OSLog(subsystem: "Harshit.NudgeClient", category: "NudgeClient")
+    private let log = OSLog(subsystem: "Harshit.Nudge", category: "NudgeClient")
     
     override init() {
         

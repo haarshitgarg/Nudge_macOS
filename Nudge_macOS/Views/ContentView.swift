@@ -11,12 +11,12 @@ import os
 struct ContentView: View {
     @StateObject private var viewModel = ChatViewModel.shared
     
-    private let log = OSLog(subsystem: "com.harshitgarg.Nudge_macOS", category: "ContentView")
+    private let log = OSLog(subsystem: "Harshit.Nudge", category: "ContentView")
     
     var body: some View {
         VStack {
             Button("Toggle Chat Window") {
-                PanelManager.shared.togglePanel()
+                ChatViewModel.shared.togglePanel()
             }
         }
         .padding()

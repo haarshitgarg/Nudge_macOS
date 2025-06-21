@@ -11,9 +11,13 @@ import os
 
 @MainActor
 class ChatViewModel: ObservableObject {
+    // Panel manager inserts
+    private var panel: FloatingPanel?
+    
+    //
     public static let shared = ChatViewModel()
     
-    let log = OSLog(subsystem: "com.harshitgarg.nudge", category: "ChatViewModel")
+    let log = OSLog(subsystem: "Harshit.Nudge", category: "ChatViewModel")
     
     public let nudgeClient = NudgeClient()
     public let shortcutManager = ShortcutManager()
@@ -67,6 +71,51 @@ class ChatViewModel: ObservableObject {
     }
 }
 
+// Panel Manager Extension
+extension ChatViewModel {
+    func showPanel() {
+        if panel == nil {
+            let contentView = ChatView().frame(width: 500)
+            
+            panel = FloatingPanel(contentView: contentView)
+        }
+        
+        // Center and show the panel
+        if let screen = NSScreen.main {
+            let screenRect = screen.visibleFrame
+            let panelRect = panel!.frame
+            let newOrigin = NSPoint(
+                x: (screenRect.width - panelRect.width) / 2,
+                y: (screenRect.height - panelRect.height) / 2 + screenRect.height * 0.2 // Position slightly higher
+            )
+            panel?.setFrameOrigin(newOrigin)
+        }
+        
+        self.isChatVisible = true
+        panel?.makeKeyAndOrderFront(nil)
+    }
+    
+    func hidePanel() {
+        self.isChatVisible = false
+        panel?.orderOut(nil)
+    }
+    
+    func togglePanel() {
+        if panel?.isVisible == true {
+            hidePanel()
+        } else {
+            showPanel()
+        }
+    }
+    
+    func cleanupPanel() {
+        os_log("Cleaning up panel resources", log: log, type: .debug)
+        self.panel?.orderOut(nil)
+        panel?.close()
+        panel = nil
+    }
+}
+
 extension ChatViewModel: NudgeDelegateProtocol {
     func notifyShortcutPressed() {
         os_log("Shortcut pressed notification received in ChatViewModel", log: log, type: .info)
@@ -76,11 +125,16 @@ extension ChatViewModel: NudgeDelegateProtocol {
 extension ChatViewModel: ShortcutManagerDelegate {
     func shortcutManagerDidNotHaveAccessibilityPermissions() {
         os_log("ShortcutManager did not have accessibility permissions", log: log, type: .error)
+        let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as String: true] as CFDictionary
+        let _ = AXIsProcessTrustedWithOptions(options)
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     func shortcutManagerDidReceiveChatShortcut() {
         os_log("ShortcutManager did receive chat shortcut", log: log, type: .info)
-        self.isChatVisible.toggle()
+        self.togglePanel()
     }
 }
 

@@ -2,9 +2,9 @@ import SwiftUI
 import os
 
 class FloatingPanel: NSPanel {
-    private let log = OSLog(subsystem: "com.harshitgarg.Nudge_macOS", category: "FloatingPanel")
+    private let log = OSLog(subsystem: "Harshit.Nudge", category: "FloatingPanel")
     
-    init(contentView: AnyView) {
+    init(contentView: some View) {
         super.init(
             contentRect: .zero,
             styleMask: [.borderless, .nonactivatingPanel],

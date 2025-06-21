@@ -7,7 +7,7 @@
 
 import Foundation
 import os
-let log = OSLog(subsystem: "com.nudge.helper", category: "main")
+let log = OSLog(subsystem: "Harshit.Nudge", category: "main_helper")
 
 class ServiceDelegate: NSObject, NSXPCListenerDelegate {
     

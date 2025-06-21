@@ -13,7 +13,7 @@ class ShortcutManager: NSObject {
     weak var delegate: ShortcutManagerDelegate?
     
     private var eventHotKey: EventHotKeyRef?
-    private let log = OSLog(subsystem: "com.harshit.nudge", category: "shortcuts")
+    private let log = OSLog(subsystem: "Harshit.Nudge", category: "shortcuts")
     
     // Option + L shortcut
     private let kChatShortcutID: UInt32 = 1
@@ -108,9 +108,4 @@ class ShortcutManager: NSObject {
         return OSStatus(eventNotHandledErr)
     }
     
-    // Re-register shortcuts after permissions are granted
-    func refreshShortcuts() {
-        unregisterGlobalShortcuts()
-        registerGlobalShortcuts()
-    }
-} 
+}

@@ -12,7 +12,7 @@ struct ChatView: View {
     @State private var query: String = ""
     @StateObject private var chatViewModel: ChatViewModel = ChatViewModel.shared
     
-    private let log = OSLog(subsystem: "com.harshitgarg.Nudge", category: "ChatView")
+    private let log = OSLog(subsystem: "Harshit.Nudge", category: "ChatView")
     
     var body: some View {
         VStack(spacing: 16) {

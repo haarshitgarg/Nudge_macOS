@@ -10,7 +10,7 @@ import os
 
 /// This object implements the protocol which we have defined. It provides the actual behavior for the service. It is 'exported' by the service to make it available to the process hosting the service over an NSXPCConnection.
 class NudgeHelper: NSObject, NudgeHelperProtocol {
-    private let log = OSLog(subsystem: "com.harshitgarg.NudgeHelper", category: "NudgeHelper")
+    private let log = OSLog(subsystem: "Harshit.Nudge", category: "NudgeHelper")
     
     private let messageQueue = DispatchQueue(label: "com.harshit.nudgehelper.messagequeue", qos: .userInitiated, attributes: .concurrent)
     private var client: NudgeClientProtocol? = nil

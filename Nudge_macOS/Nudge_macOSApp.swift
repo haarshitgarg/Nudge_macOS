@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import os
 
 @main
 struct Nudge_macOSApp: App {
@@ -24,9 +25,10 @@ struct Nudge_macOSApp: App {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    let log = OSLog(subsystem: "Harshit.Nudge", category: "MainAppDelegate")
     func applicationDidFinishLaunching(_ notification: Notification) {
         // You can show the panel on launch if you want
-        PanelManager.shared.showPanel()
+        ChatViewModel.shared.togglePanel()
     }
     
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
@@ -34,8 +36,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        PanelManager.shared.cleanup()
+        os_log("Application is terminating, cleaning up resources", log: log, type: .debug)
+        ChatViewModel.shared.cleanupPanel()
         ChatViewModel.shared.nudgeClient.disconnect()
-        Thread.sleep(forTimeInterval: 2.0) // Give time for cleanup
     }
 }
