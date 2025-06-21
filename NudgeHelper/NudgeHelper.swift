@@ -10,9 +10,15 @@ import os
 
 /// This object implements the protocol which we have defined. It provides the actual behavior for the service. It is 'exported' by the service to make it available to the process hosting the service over an NSXPCConnection.
 class NudgeHelper: NSObject, NudgeHelperProtocol {
-    private let log = OSLog(subsystem: "Harshit.NudgeHelper", category: "NudgeHelper")
+    private let log = OSLog(subsystem: "Harshit.Nudge", category: "NudgeHelper")
     
     private let messageQueue = DispatchQueue(label: "com.harshit.nudgehelper.messagequeue", qos: .userInitiated, attributes: .concurrent)
+    private var client: NudgeClientProtocol? = nil
+    
+    override init() {
+        super.init()
+        os_log("NudgeHelper initialized", log: log, type: .info)
+    }
     
     @objc func sendChatMessage(message: String, with reply: @escaping (String) -> Void) {
         // Handle the chat message here
@@ -24,10 +30,27 @@ class NudgeHelper: NSObject, NudgeHelperProtocol {
         }
     }
     
+    @objc func setClient(_ client: NudgeClientProtocol) {
+        // This method can be used to set the client if needed
+        os_log("Client set for NudgeHelper", log: log, type: .info)
+        self.client = client
+    }
+
+    @objc func terminate() {
+        os_log("Terminating NudgeHelper", log: log, type: .info)
+        self.client = nil
+    }
+    
     private func processMessaage(_ message: String) -> String {
         sleep(5) // Simulating some processing delay
         let processedMessge = message + " - Processed by NudgeHelper"
         return processedMessge
     }
     
+    deinit {
+        os_log("NudgeHelper is being deinitialized", log: log, type: .debug)
+        self.client = nil
+    }
+    
 }
+

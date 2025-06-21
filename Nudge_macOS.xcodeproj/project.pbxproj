@@ -56,6 +56,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E411372A2E05E18D006D14B3 /* Exceptions for "Nudge_macOS" folder in "NudgeHelper" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Errors/NudgeError.swift,
+			);
+			target = E414C9E72E02EC7900DC57AA /* NudgeHelper */;
+		};
 		E414C9F52E02EC7900DC57AA /* Exceptions for "NudgeHelper" folder in "NudgeHelper" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -66,6 +73,7 @@
 		E414CA0A2E02FE8700DC57AA /* Exceptions for "NudgeHelper" folder in "Nudge_macOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				NudgeClientProtocol.swift,
 				NudgeHelperProtocol.swift,
 			);
 			target = E414C9A22E02E85D00DC57AA /* Nudge_macOS */;
@@ -75,6 +83,9 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E414C9A52E02E85D00DC57AA /* Nudge_macOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E411372A2E05E18D006D14B3 /* Exceptions for "Nudge_macOS" folder in "NudgeHelper" target */,
+			);
 			path = Nudge_macOS;
 			sourceTree = "<group>";
 		};
@@ -434,7 +445,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
-				ONLY_ACTIVE_ARCH = YES;
+				ONLY_ACTIVE_ARCH = NO;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -492,6 +503,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
