@@ -18,11 +18,10 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     
     // MCP client variables
     private var servers: [MCPServer: Client] = [:]
-    private var openAIClient: OpenAI
+    private var openAIClient: OpenAI? = nil
     // ____________________
     
     override init() {
-        self.openAIClient = OpenAI(apiToken: Secrets.open_ai_key)
         super.init()
         
         setupMCPClient()
@@ -34,7 +33,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         Task {
             do {
                 //try await self.debugPrintServers()
-                try await communicateWithLLM(message)
+                try await communication_with_chatgpt(message)
             } catch {
                 os_log("Error while sending user message: %@", log: log, type: .error, error.localizedDescription)
             }
@@ -108,7 +107,25 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         }
     }
     
-    private func communicateWithLLM(_ query: String) async throws {
+    private func communication_with_chatgpt(_ query: String) async throws {
+        // Initialize openAI client if not already initialized
+        if openAIClient == nil {
+            os_log("Initializing OpenAI client with API key", log: log, type: .debug)
+            self.openAIClient = OpenAI(apiToken: Secrets.open_ai_key)
+        }
+        guard let openAIClient = openAIClient else {
+            os_log("OpenAI client is not initialized", log: log, type: .error)
+            throw NudgeError.openAIClientNotInitialized
+        }
+        
+        // Initialising JSON encoder and decoder
+        let jsonEncoder: JSONEncoder = JSONEncoder()
+        let jsonDecoder: JSONDecoder = JSONDecoder()
+        
+        // Variables for server_tools
+        var server_tools: [MCP.Tool] = []
+
+        // Message to be sent to OpenAI
         let messages: [ChatQuery.ChatCompletionMessageParam] = [ChatQuery.ChatCompletionMessageParam(role: .user, content: query)!]
 
         // Right now only getting tools from the first server for simplicity
@@ -118,10 +135,8 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             os_log("No tools available from any server", log: log, type: .error)
             throw NudgeError.cannotGetTools
         }
-        let jsonEncoder: JSONEncoder = JSONEncoder()
-        let jsonDecoder: JSONDecoder = JSONDecoder()
         
-        let server_tools: [MCP.Tool] = response.0
+        server_tools.append(contentsOf: response.tools)
         os_log("Received %d tools from server", log: log, type: .debug, server_tools.count)
         let data = try jsonEncoder.encode(server_tools)
         os_log("Encoded tools data: %@", log: log, type: .debug, String(data: data, encoding: .utf8) ?? "No data")
@@ -129,9 +144,9 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
         for tool in server_tools {
             os_log("Processing tool: %@", log: log, type: .debug, tool.name)
-            let data = try jsonEncoder.encode(tool.inputSchema)
-            os_log("Encoded tool schema data: %@", log: log, type: .debug, String(data: data, encoding: .utf8) ?? "No data")
-            let tool_schema = try jsonDecoder.decode(AnyJSONSchema.self, from: data)
+            let schema_data = try jsonEncoder.encode(tool.inputSchema)
+            os_log("Encoded tool schema data: %@", log: log, type: .debug, String(data: schema_data, encoding: .utf8) ?? "No data")
+            let tool_schema = try jsonDecoder.decode(AnyJSONSchema.self, from: schema_data)
             os_log("Decoded tool schema: %@", log: log, type: .debug, String(describing: tool_schema))
             let function: ChatQuery.ChatCompletionToolParam.FunctionDefinition = ChatQuery.ChatCompletionToolParam.FunctionDefinition(
                 name: tool.name,
@@ -154,8 +169,28 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         os_log("Query: %@", log: log, type: .debug, String(data: temp_data, encoding: .utf8) ?? "No data")
         let openAIResponse = try await openAIClient.chats(query: llm_query)
         
-        
         os_log("Received response from OpenAI: %@", log: log, type: .debug, openAIResponse.choices.first?.message.content ?? "No content")
+        os_log("------------------------------------------------------", log: log, type: .debug)
+        os_log("The tool calls list from OpenAI: %@", log: log, type: .debug, openAIResponse.choices.first?.message.toolCalls ?? "No content")
+
+        if openAIResponse.choices.first?.message.toolCalls != nil {
+            os_log("Processing tool calls from OpenAI response", log: log, type: .debug)
+            for toolCall in openAIResponse.choices.first!.message.toolCalls! {
+                os_log("Tool call: %@", log: log, type: .debug, toolCall.function.name)
+                if let tool = server_tools.first(where: { $0.name == toolCall.function.name }) {
+                    os_log("Found tool: %@", log: log, type: .debug, tool.name)
+                    os_log("Calling tool with arguments: %@", log: log, type: .debug, String(describing: toolCall.function.arguments))
+                    guard let argumentsData = toolCall.function.arguments.data(using: .utf8) else {
+                        os_log("Failed to convert arguments to Data", log: log, type: .error)
+                        throw NudgeError.cannotParseToolArguments
+                    }
+                    let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
+                    os_log("Decoded arguments: %@", log: log, type: .debug, String(describing: arguemnt_dict))
+                    let tool_result = try await servers.first?.value.callTool(name: tool.name, arguments: arguemnt_dict)
+                    os_log("Tool result: %@", log: log, type: .debug, String(describing: tool_result))
+                }
+            }
+        }
     }
     
         
