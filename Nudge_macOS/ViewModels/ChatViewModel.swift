@@ -16,6 +16,7 @@ class ChatViewModel: ObservableObject {
     let log = OSLog(subsystem: "com.harshitgarg.nudge", category: "ChatViewModel")
     
     public let nudgeClient = NudgeClient()
+    public let shortcutManager = ShortcutManager()
     
     @Published public var xcpMessage: [XPCMessage] = []
     @Published public var isChatVisible: Bool = false
@@ -28,6 +29,7 @@ class ChatViewModel: ObservableObject {
     
     
     private init() {
+        shortcutManager.delegate = self
         do { try nudgeClient.connect()
         } catch { os_log("Failed to connect to NudgeClient: %@", log: log, type: .fault, error.localizedDescription) }
     }
@@ -68,6 +70,17 @@ class ChatViewModel: ObservableObject {
 extension ChatViewModel: NudgeDelegateProtocol {
     func notifyShortcutPressed() {
         os_log("Shortcut pressed notification received in ChatViewModel", log: log, type: .info)
+    }
+}
+
+extension ChatViewModel: ShortcutManagerDelegate {
+    func shortcutManagerDidNotHaveAccessibilityPermissions() {
+        os_log("ShortcutManager did not have accessibility permissions", log: log, type: .error)
+    }
+
+    func shortcutManagerDidReceiveChatShortcut() {
+        os_log("ShortcutManager did receive chat shortcut", log: log, type: .info)
+        self.isChatVisible.toggle()
     }
 }
 

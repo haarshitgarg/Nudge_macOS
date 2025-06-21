@@ -14,7 +14,6 @@ class NudgeHelper: NSObject, NudgeHelperProtocol {
     
     private let messageQueue = DispatchQueue(label: "com.harshit.nudgehelper.messagequeue", qos: .userInitiated, attributes: .concurrent)
     private var client: NudgeClientProtocol? = nil
-    private let shortcutManager = ShortcutManager.shared
     
     override init() {
         super.init()
@@ -44,17 +43,8 @@ class NudgeHelper: NSObject, NudgeHelperProtocol {
     
     private func processMessaage(_ message: String) -> String {
         sleep(5) // Simulating some processing delay
-        if !self.shortcutManager.isTrusted() {
-            os_log("Process is not trusted for accessibility. Cannot process message.", log: log, type: .error)
-            return "Error: Process is not trusted for accessibility."
-        }
         let processedMessge = message + " - Processed by NudgeHelper"
         return processedMessge
-    }
-    
-    private func sendShortCutPressedNotification() {
-        os_log("Sending shortcut pressed notification", log: log, type: .info)
-        client?.notifyShortcutPressed()
     }
     
     deinit {

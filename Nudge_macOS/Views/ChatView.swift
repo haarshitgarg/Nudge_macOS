@@ -12,8 +12,6 @@ struct ChatView: View {
     @State private var query: String = ""
     @StateObject private var chatViewModel: ChatViewModel = ChatViewModel.shared
     
-    private let maxAnimationCount: Int = 15
-    
     private let log = OSLog(subsystem: "com.harshitgarg.Nudge", category: "ChatView")
     
     var body: some View {
