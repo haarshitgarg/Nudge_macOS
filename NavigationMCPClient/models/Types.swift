@@ -8,7 +8,7 @@
 import Foundation
 import MCP
 
-enum MCPTransport: Codable, Sendable {
+enum MCPTransport: String, Codable, Sendable {
     case stdio
     case http
     case https
@@ -25,13 +25,17 @@ enum MCPTransport: Codable, Sendable {
     }
 }
 
-struct MCPServer: Codable, Sendable {
+struct MCPServer: Codable, Sendable, Hashable {
+    private let id: UUID
     private let transport: MCPTransport
     private let host: String
     private let port: Int
     private var stream: Bool = true
+    public let name: String
     
-    init(transport: MCPTransport = .stdio, host: String = "localhost", port: Int = 8080, stream: Bool = true) {
+    init(name: String, transport: MCPTransport = .stdio, host: String = "localhost", port: Int = 8080, stream: Bool = true) {
+        self.name = name
+        self.id = UUID()
         self.transport = transport
         self.host = host
         self.port = port
@@ -43,11 +47,11 @@ struct MCPServer: Codable, Sendable {
         case .stdio:
             return StdioTransport()
         case .http:
-            let url = URL(string: "http://\(host):\(port)")!
+            let url = URL(string: "http://\(host):\(port)/mcp")!
             let transport = HTTPClientTransport(endpoint: url, streaming: self.stream)
             return transport
         case .https:
-            let url = URL(string: "https://\(host):\(port)")!
+            let url = URL(string: "https://\(host)/mcp")!
             let transport = HTTPClientTransport(endpoint: url, streaming: self.stream)
             return transport
         }
@@ -61,6 +65,7 @@ struct ServerConfig: Codable, Sendable {
     let port: Int
     let transport: String
     let requiresAccessibility: Bool
+    let clientName: String 
 }
 
 struct ServersConfiguration: Codable, Sendable {

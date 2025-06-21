@@ -1,11 +1,20 @@
 {
   "servers": [
     {
-      "name": "Local MCP Server",
+      "name": "BART",
       "host": "localhost",
       "port": 8080,
-      "transport": "stdio",
-      "requiresAccessibility": true
+      "transport": "http",
+      "requiresAccessibility": true,
+      "clientName": "NavigationMCPClient"
+    },
+    {
+      "name": "Deep Wiki Server",
+      "host": "mcp.deepwiki.com",
+      "port": 0,
+      "transport": "https",
+      "requiresAccessibility": true,
+      "clientName": "Deep Wiki Server"
     }
   ]
 }

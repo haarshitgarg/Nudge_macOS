@@ -16,7 +16,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     private let log = OSLog(subsystem: "Harshit.Nudge", category: "NavigationMCPClient")
     
     // MCP client variables
-    private var client: Client?
+    private var servers: [MCPServer: Client] = [:]
     // ____________________
     
     override init() {
@@ -34,7 +34,18 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         os_log("Setting up MCP Client...", log: log, type: .debug)
         // Load server configuration
         loadServerConfig()
-        self.client = Client(name: "NudgeClient", version: "1.0")
+        // self.client = Client(name: "NudgeClient", version: "1.0")
+        for server in servers.keys {
+            Task {
+                do {
+                    os_log("Trying to connect to server: %@", log: log, type: .info, server.name)
+                    try await servers[server]?.connect(transport: server.getTransport())
+                    os_log("Successfully connected to server: %@", log: log, type: .info, server.name)
+                } catch {
+                    os_log("Failed to connect to server %@ with error: %@", log: log, type: .error, server.name, error.localizedDescription)
+                }
+            }
+        }
     }
     
     private func loadServerConfig() {
@@ -68,6 +79,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                        serverConfig.host, 
                        serverConfig.port, 
                        serverConfig.transport,
+                       serverConfig.clientName,
                        serverConfig.requiresAccessibility ? "true" : "false")
                 
                 // Here you can add logic to process each server configuration
@@ -75,6 +87,13 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 // - Validate the configuration
                 // - Set up connections to each server
                 // - Store them for later use
+                let server = MCPServer(
+                    name: serverConfig.name,
+                    transport: MCPTransport(rawValue: serverConfig.transport) ?? .stdio,
+                    host: serverConfig.host,
+                    port: serverConfig.port
+                )
+                self.servers[server] = Client(name: serverConfig.clientName, version: "1.0.0")
             }
             
         } catch {
