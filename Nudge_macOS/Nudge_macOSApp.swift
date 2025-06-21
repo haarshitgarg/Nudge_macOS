@@ -35,5 +35,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         PanelManager.shared.cleanup()
+        ChatViewModel.shared.nudgeClient.disconnect()
+        Thread.sleep(forTimeInterval: 1.0) // Give time for cleanup
     }
 }
