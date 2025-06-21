@@ -7,14 +7,6 @@
       "transport": "http",
       "requiresAccessibility": true,
       "clientName": "NavigationMCPClient"
-    },
-    {
-      "name": "Deep Wiki Server",
-      "host": "mcp.deepwiki.com",
-      "port": 0,
-      "transport": "https",
-      "requiresAccessibility": true,
-      "clientName": "Deep Wiki Server"
     }
   ]
 }

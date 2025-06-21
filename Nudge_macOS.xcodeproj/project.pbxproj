@@ -10,6 +10,7 @@
 		E414C9F42E02EC7900DC57AA /* NudgeHelper.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = E414C9E82E02EC7900DC57AA /* NudgeHelper.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E44002182E069CE30027B8DB /* NavigationMCPClient.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = E440020C2E069CE30027B8DB /* NavigationMCPClient.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E440021F2E069DC30027B8DB /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = E440021E2E069DC30027B8DB /* MCP */; };
+		E440023A2E06F2520027B8DB /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = E44002392E06F2520027B8DB /* OpenAI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -103,6 +104,13 @@
 			);
 			target = E414C9A22E02E85D00DC57AA /* Nudge_macOS */;
 		};
+		E44002372E06EF070027B8DB /* Exceptions for "Nudge_macOS" folder in "NavigationMCPClient" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Errors/NudgeError.swift,
+			);
+			target = E440020B2E069CE30027B8DB /* NavigationMCPClient */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -110,6 +118,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				E411372A2E05E18D006D14B3 /* Exceptions for "Nudge_macOS" folder in "NudgeHelper" target */,
+				E44002372E06EF070027B8DB /* Exceptions for "Nudge_macOS" folder in "NavigationMCPClient" target */,
 			);
 			path = Nudge_macOS;
 			sourceTree = "<group>";
@@ -177,6 +186,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E440023A2E06F2520027B8DB /* OpenAI in Frameworks */,
 				E440021F2E069DC30027B8DB /* MCP in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -322,6 +332,7 @@
 			name = NavigationMCPClient;
 			packageProductDependencies = (
 				E440021E2E069DC30027B8DB /* MCP */,
+				E44002392E06F2520027B8DB /* OpenAI */,
 			);
 			productName = NavigationMCPClient;
 			productReference = E440020C2E069CE30027B8DB /* NavigationMCPClient.xpc */;
@@ -367,6 +378,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				E440021D2E069DC30027B8DB /* XCRemoteSwiftPackageReference "swift-sdk" */,
+				E44002382E06F2520027B8DB /* XCRemoteSwiftPackageReference "OpenAI" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E414C9A42E02E85D00DC57AA /* Products */;
@@ -890,6 +902,14 @@
 				minimumVersion = 0.9.0;
 			};
 		};
+		E44002382E06F2520027B8DB /* XCRemoteSwiftPackageReference "OpenAI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/MacPaw/OpenAI";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.4.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -897,6 +917,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E440021D2E069DC30027B8DB /* XCRemoteSwiftPackageReference "swift-sdk" */;
 			productName = MCP;
+		};
+		E44002392E06F2520027B8DB /* OpenAI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E44002382E06F2520027B8DB /* XCRemoteSwiftPackageReference "OpenAI" */;
+			productName = OpenAI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -71,3 +71,10 @@ struct ServerConfig: Codable, Sendable {
 struct ServersConfiguration: Codable, Sendable {
     let servers: [ServerConfig]
 }
+
+// MARK: - LLM RELATED EVERYTHING
+struct LLMQuery: Codable, Sendable {
+    let role: String
+    let content: String
+}
+

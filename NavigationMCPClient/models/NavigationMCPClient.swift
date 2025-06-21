@@ -8,6 +8,7 @@
 import Foundation
 import os
 import MCP
+import OpenAI
 
 
 
@@ -17,16 +18,27 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     
     // MCP client variables
     private var servers: [MCPServer: Client] = [:]
+    private var openAIClient: OpenAI
     // ____________________
     
     override init() {
+        self.openAIClient = OpenAI(apiToken: Secrets.open_ai_key)
         super.init()
+        
         setupMCPClient()
         os_log("NavigationMCPClient initialized", log: log, type: .debug)
     }
     
     @objc func sendUserMessage(_ message: String) {
         os_log("Received user message: %@", log: log, type: .debug, message)
+        Task {
+            do {
+                //try await self.debugPrintServers()
+                try await communicateWithLLM(message)
+            } catch {
+                os_log("Error while sending user message: %@", log: log, type: .error, error.localizedDescription)
+            }
+        }
     }
     
     // MARK: - Start the MCP client settings from here
@@ -82,11 +94,6 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                        serverConfig.clientName,
                        serverConfig.requiresAccessibility ? "true" : "false")
                 
-                // Here you can add logic to process each server configuration
-                // For example, you might want to:
-                // - Validate the configuration
-                // - Set up connections to each server
-                // - Store them for later use
                 let server = MCPServer(
                     name: serverConfig.name,
                     transport: MCPTransport(rawValue: serverConfig.transport) ?? .stdio,
@@ -100,6 +107,68 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             os_log("Error loading server configuration: %@", log: log, type: .error, error.localizedDescription)
         }
     }
+    
+    private func communicateWithLLM(_ query: String) async throws {
+        let messages: [ChatQuery.ChatCompletionMessageParam] = [ChatQuery.ChatCompletionMessageParam(role: .user, content: query)!]
+
+        // Right now only getting tools from the first server for simplicity
+        os_log("Fetching tools from servers...", log: log, type: .debug)
+        guard let response = try await servers.first?.value.listTools()
+        else {
+            os_log("No tools available from any server", log: log, type: .error)
+            throw NudgeError.cannotGetTools
+        }
+        let jsonEncoder: JSONEncoder = JSONEncoder()
+        let jsonDecoder: JSONDecoder = JSONDecoder()
         
+        let server_tools: [MCP.Tool] = response.0
+        os_log("Received %d tools from server", log: log, type: .debug, server_tools.count)
+        let data = try jsonEncoder.encode(server_tools)
+        os_log("Encoded tools data: %@", log: log, type: .debug, String(data: data, encoding: .utf8) ?? "No data")
+        //let openAITools: [ChatQuery.ChatCompletionToolParam] = try jsonDecoder.decode([ChatQuery.ChatCompletionToolParam].self, from: data)
+        var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
+        for tool in server_tools {
+            os_log("Processing tool: %@", log: log, type: .debug, tool.name)
+            let data = try jsonEncoder.encode(tool.inputSchema)
+            os_log("Encoded tool schema data: %@", log: log, type: .debug, String(data: data, encoding: .utf8) ?? "No data")
+            let tool_schema = try jsonDecoder.decode(AnyJSONSchema.self, from: data)
+            os_log("Decoded tool schema: %@", log: log, type: .debug, String(describing: tool_schema))
+            let function: ChatQuery.ChatCompletionToolParam.FunctionDefinition = ChatQuery.ChatCompletionToolParam.FunctionDefinition(
+                name: tool.name,
+                description: tool.description,
+                parameters: tool_schema
+            )
+            chat_gpt_tools.append(ChatQuery.ChatCompletionToolParam(function: function))
+        }
+            
+            
+        
+        let llm_query: ChatQuery = ChatQuery(
+            messages: messages,
+            model: "gpt-4o-2024-08-06",
+            tools: chat_gpt_tools)
+        
+        let temp_data = try! jsonEncoder.encode(llm_query)
+        os_log("Sending query to OpenAI", log: log, type: .debug)
+        
+        os_log("Query: %@", log: log, type: .debug, String(data: temp_data, encoding: .utf8) ?? "No data")
+        let openAIResponse = try await openAIClient.chats(query: llm_query)
+        
+        
+        os_log("Received response from OpenAI: %@", log: log, type: .debug, openAIResponse.choices.first?.message.content ?? "No content")
+    }
+    
+        
+}
+
+// MARK: ALL DEBUG FUNCTIONS
+extension NavigationMCPClient {
+    func debugPrintServers() async throws {
+        for client in servers.values {
+            os_log("Client Name: %@, Version: %@", log: log, type: .debug, client.name, client.version)
+            let (tools, _) = try await client.listTools()
+            os_log("Tools for client %@: %@", log: log, type: .debug, client.name, tools.map { $0.name }.joined(separator: ", "))
+        }
+    }
 }
 

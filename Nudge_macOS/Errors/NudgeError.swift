@@ -9,6 +9,7 @@ import Foundation
 public enum NudgeError: Error, Sendable {
     case connectionFailed
     case invalidResponse
+    case cannotGetTools
     
     public var getDescription: String {
         switch self {
@@ -16,6 +17,8 @@ public enum NudgeError: Error, Sendable {
             return "Failed to connect to the Nudge service."
         case .invalidResponse:
             return "Received an invalid response from the Nudge service."
+        case .cannotGetTools:
+            return "Unable to retrieve tools from the server."
         }
     }
 }
