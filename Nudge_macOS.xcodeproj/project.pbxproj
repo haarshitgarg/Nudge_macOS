@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		E414C9F42E02EC7900DC57AA /* NudgeHelper.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = E414C9E82E02EC7900DC57AA /* NudgeHelper.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		E44002182E069CE30027B8DB /* NavigationMCPClient.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = E440020C2E069CE30027B8DB /* NavigationMCPClient.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		E440021F2E069DC30027B8DB /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = E440021E2E069DC30027B8DB /* MCP */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -32,6 +34,13 @@
 			remoteGlobalIDString = E414C9E72E02EC7900DC57AA;
 			remoteInfo = NudgeHelper;
 		};
+		E44002162E069CE30027B8DB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E414C99B2E02E85D00DC57AA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E440020B2E069CE30027B8DB;
+			remoteInfo = NavigationMCPClient;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -42,6 +51,7 @@
 			dstSubfolderSpec = 16;
 			files = (
 				E414C9F42E02EC7900DC57AA /* NudgeHelper.xpc in Embed XPC Services */,
+				E44002182E069CE30027B8DB /* NavigationMCPClient.xpc in Embed XPC Services */,
 			);
 			name = "Embed XPC Services";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -53,6 +63,7 @@
 		E414C9B12E02E85E00DC57AA /* Nudge_macOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Nudge_macOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E414C9BB2E02E85E00DC57AA /* Nudge_macOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Nudge_macOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E414C9E82E02EC7900DC57AA /* NudgeHelper.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = NudgeHelper.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
+		E440020C2E069CE30027B8DB /* NavigationMCPClient.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = NavigationMCPClient.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -75,6 +86,20 @@
 			membershipExceptions = (
 				NudgeClientProtocol.swift,
 				NudgeHelperProtocol.swift,
+			);
+			target = E414C9A22E02E85D00DC57AA /* Nudge_macOS */;
+		};
+		E440021C2E069CE30027B8DB /* Exceptions for "NavigationMCPClient" folder in "NavigationMCPClient" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = E440020B2E069CE30027B8DB /* NavigationMCPClient */;
+		};
+		E440022C2E06A8FC0027B8DB /* Exceptions for "NavigationMCPClient" folder in "Nudge_macOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				protocols/NavigationMCPClientProtocol.swift,
 			);
 			target = E414C9A22E02E85D00DC57AA /* Nudge_macOS */;
 		};
@@ -108,6 +133,15 @@
 			path = NudgeHelper;
 			sourceTree = "<group>";
 		};
+		E440020D2E069CE30027B8DB /* NavigationMCPClient */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E440022C2E06A8FC0027B8DB /* Exceptions for "NavigationMCPClient" folder in "Nudge_macOS" target */,
+				E440021C2E069CE30027B8DB /* Exceptions for "NavigationMCPClient" folder in "NavigationMCPClient" target */,
+			);
+			path = NavigationMCPClient;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +173,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E44002092E069CE30027B8DB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E440021F2E069DC30027B8DB /* MCP in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -149,6 +191,7 @@
 				E414C9B42E02E85E00DC57AA /* Nudge_macOSTests */,
 				E414C9BE2E02E85E00DC57AA /* Nudge_macOSUITests */,
 				E414C9E92E02EC7900DC57AA /* NudgeHelper */,
+				E440020D2E069CE30027B8DB /* NavigationMCPClient */,
 				E414C9A42E02E85D00DC57AA /* Products */,
 			);
 			sourceTree = "<group>";
@@ -160,6 +203,7 @@
 				E414C9B12E02E85E00DC57AA /* Nudge_macOSTests.xctest */,
 				E414C9BB2E02E85E00DC57AA /* Nudge_macOSUITests.xctest */,
 				E414C9E82E02EC7900DC57AA /* NudgeHelper.xpc */,
+				E440020C2E069CE30027B8DB /* NavigationMCPClient.xpc */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -180,6 +224,7 @@
 			);
 			dependencies = (
 				E414C9F32E02EC7900DC57AA /* PBXTargetDependency */,
+				E44002172E069CE30027B8DB /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				E414C9A52E02E85D00DC57AA /* Nudge_macOS */,
@@ -259,6 +304,29 @@
 			productReference = E414C9E82E02EC7900DC57AA /* NudgeHelper.xpc */;
 			productType = "com.apple.product-type.xpc-service";
 		};
+		E440020B2E069CE30027B8DB /* NavigationMCPClient */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E440021B2E069CE30027B8DB /* Build configuration list for PBXNativeTarget "NavigationMCPClient" */;
+			buildPhases = (
+				E44002082E069CE30027B8DB /* Sources */,
+				E44002092E069CE30027B8DB /* Frameworks */,
+				E440020A2E069CE30027B8DB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				E440020D2E069CE30027B8DB /* NavigationMCPClient */,
+			);
+			name = NavigationMCPClient;
+			packageProductDependencies = (
+				E440021E2E069DC30027B8DB /* MCP */,
+			);
+			productName = NavigationMCPClient;
+			productReference = E440020C2E069CE30027B8DB /* NavigationMCPClient.xpc */;
+			productType = "com.apple.product-type.xpc-service";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -283,6 +351,9 @@
 					E414C9E72E02EC7900DC57AA = {
 						CreatedOnToolsVersion = 16.4;
 					};
+					E440020B2E069CE30027B8DB = {
+						CreatedOnToolsVersion = 16.4;
+					};
 				};
 			};
 			buildConfigurationList = E414C99E2E02E85D00DC57AA /* Build configuration list for PBXProject "Nudge_macOS" */;
@@ -294,6 +365,9 @@
 			);
 			mainGroup = E414C99A2E02E85D00DC57AA;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E440021D2E069DC30027B8DB /* XCRemoteSwiftPackageReference "swift-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E414C9A42E02E85D00DC57AA /* Products */;
 			projectDirPath = "";
@@ -303,6 +377,7 @@
 				E414C9B02E02E85E00DC57AA /* Nudge_macOSTests */,
 				E414C9BA2E02E85E00DC57AA /* Nudge_macOSUITests */,
 				E414C9E72E02EC7900DC57AA /* NudgeHelper */,
+				E440020B2E069CE30027B8DB /* NavigationMCPClient */,
 			);
 		};
 /* End PBXProject section */
@@ -330,6 +405,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E414C9E62E02EC7900DC57AA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E440020A2E069CE30027B8DB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -367,6 +449,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E44002082E069CE30027B8DB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -384,6 +473,11 @@
 			isa = PBXTargetDependency;
 			target = E414C9E72E02EC7900DC57AA /* NudgeHelper */;
 			targetProxy = E414C9F22E02EC7900DC57AA /* PBXContainerItemProxy */;
+		};
+		E44002172E069CE30027B8DB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E440020B2E069CE30027B8DB /* NavigationMCPClient */;
+			targetProxy = E44002162E069CE30027B8DB /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -681,6 +775,53 @@
 			};
 			name = Release;
 		};
+		E44002192E069CE30027B8DB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = NavigationMCPClient/NavigationMCPClient.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9WS6268AT2;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NavigationMCPClient/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = NavigationMCPClient;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				MARKETING_VERSION = 1.0;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = Harshit.NavigationMCPClient;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		E440021A2E069CE30027B8DB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = NavigationMCPClient/NavigationMCPClient.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9WS6268AT2;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NavigationMCPClient/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = NavigationMCPClient;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Harshit.NavigationMCPClient;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -729,7 +870,35 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		E440021B2E069CE30027B8DB /* Build configuration list for PBXNativeTarget "NavigationMCPClient" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E44002192E069CE30027B8DB /* Debug */,
+				E440021A2E069CE30027B8DB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E440021D2E069DC30027B8DB /* XCRemoteSwiftPackageReference "swift-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/modelcontextprotocol/swift-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E440021E2E069DC30027B8DB /* MCP */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E440021D2E069DC30027B8DB /* XCRemoteSwiftPackageReference "swift-sdk" */;
+			productName = MCP;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E414C99B2E02E85D00DC57AA /* Project object */;
 }

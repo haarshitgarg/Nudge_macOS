@@ -21,6 +21,7 @@ class ChatViewModel: ObservableObject {
     
     public let nudgeClient = NudgeClient()
     public let shortcutManager = ShortcutManager()
+    public let navClient = NudgeNavClient()
     
     @Published public var xcpMessage: [XPCMessage] = []
     @Published public var isChatVisible: Bool = false
@@ -34,12 +35,15 @@ class ChatViewModel: ObservableObject {
     
     private init() {
         shortcutManager.delegate = self
-        do { try nudgeClient.connect()
+        do {
+            try nudgeClient.connect()
+            try navClient.connect()
         } catch { os_log("Failed to connect to NudgeClient: %@", log: log, type: .fault, error.localizedDescription) }
     }
     
     public func sendMessage(_ msg: String) async throws {
         let reply = try await nudgeClient.sendMessage(message: msg)
+        try navClient.sendMessageToMCPClient(msg)
         self.xcpMessage.append(XPCMessage(content: reply))
     }
     

@@ -1,0 +1,11 @@
+{
+  "servers": [
+    {
+      "name": "Local MCP Server",
+      "host": "localhost",
+      "port": 8080,
+      "transport": "stdio",
+      "requiresAccessibility": true
+    }
+  ]
+}
