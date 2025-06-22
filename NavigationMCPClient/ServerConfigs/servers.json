@@ -1,0 +1,12 @@
+{
+  "servers": [
+    {
+      "name": "BART",
+      "host": "localhost",
+      "port": 8080,
+      "transport": "http",
+      "requiresAccessibility": true,
+      "clientName": "NavigationMCPClient"
+    }
+  ]
+}

@@ -42,7 +42,7 @@ class NudgeHelper: NSObject, NudgeHelperProtocol {
     }
     
     private func processMessaage(_ message: String) -> String {
-        sleep(5) // Simulating some processing delay
+        //sleep(5) // Simulating some processing delay
         let processedMessge = message + " - Processed by NudgeHelper"
         return processedMessge
     }

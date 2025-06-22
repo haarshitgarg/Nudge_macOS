@@ -62,3 +62,7 @@ Package.resolved
 *.swp
 *.swo
 *~
+
+# Secrets
+Secrets.xcconfig
+Secrets.swift
