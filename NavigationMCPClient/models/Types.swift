@@ -8,6 +8,7 @@
 import Foundation
 import Logging
 import MCP
+import OpenAI
 import System
 
 let logger = Logger(label: "Harshit.Nudge")
@@ -62,5 +63,19 @@ struct ServersConfiguration: Codable, Sendable {
 struct LLMQuery: Codable, Sendable {
     let role: String
     let content: String
+}
+
+// MARK: - Client related structures
+struct ClientInfo {
+    public var process: Process?
+    public var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam]
+    public var mcp_tools: [MCP.Tool]
+    public var client: Client
+    
+    init(client: Client) {
+        self.client = client
+        chat_gpt_tools = []
+        mcp_tools = []
+    }
 }
 
