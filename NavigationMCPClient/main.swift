@@ -26,7 +26,11 @@ class ServiceDelegate: NSObject, NSXPCListenerDelegate {
         // Returning true from this method tells the system that you have accepted this connection. If you want to reject the connection for some reason, call invalidate() on the connection and return false.
         return true
     }
+    
 }
+
+// Running the stdio server
+//NudgeServerRun()
 
 // Create the delegate for the service.
 let delegate = ServiceDelegate()

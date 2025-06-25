@@ -55,4 +55,18 @@ class NudgeNavClient: NSObject {
         
         os_log("Message sent to MCP client: %@", log: log, type: .debug, message)
     }
+    
+    func disconnect() {
+        os_log("Disconnecting the xpc connection with nav client", log: log, type: .debug)
+        os_log("Deinitialising the NudgeNavClient", log: log, type: .debug)
+        let proxy = connection?.remoteObjectProxyWithErrorHandler { error in
+            os_log("Error occured while disconnection: %@", log: self.log, type: .debug, error.localizedDescription)
+        } as? NavigationMCPClientProtocol
+        proxy?.terminate()
+        self.connection?.invalidate()
+    }
+    
+    deinit {
+        self.disconnect()
+    }
 }

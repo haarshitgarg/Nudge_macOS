@@ -84,16 +84,15 @@ class NudgeClient: NSObject {
     }
 
     deinit {
-        os_log("NudgeClient is being deinitialized", log: log, type: .debug)
-        let proxy = connection?.remoteObjectProxyWithErrorHandler { error in
-            os_log("Error occurred while disconnecting: %@", log: self.log, type: .error, error.localizedDescription)
-        } as? NudgeHelperProtocol
-        proxy?.terminate()
         self.disconnect()
     }
     
     public func disconnect() {
         os_log("Disconnecting from NudgeHelper service...", log: log, type: .debug)
+        let proxy = connection?.remoteObjectProxyWithErrorHandler { error in
+            os_log("Error occurred while disconnecting: %@", log: self.log, type: .error, error.localizedDescription)
+        } as? NudgeHelperProtocol
+        proxy?.terminate()
         self.connection?.invalidate()
     }
     

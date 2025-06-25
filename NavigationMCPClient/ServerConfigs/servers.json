@@ -1,12 +1,17 @@
 {
   "servers": [
-    {
-      "name": "BART",
-      "host": "localhost",
-      "port": 8080,
-      "transport": "http",
-      "requiresAccessibility": true,
-      "clientName": "NavigationMCPClient"
-    }
+      {
+          "name": "BART",
+          "address": "http://localhost:8080/mcp",
+          "transport": "http",
+          "requiresAccessibility": true,
+          "clientName": "BartMCPClient"
+      },
+      {
+          "name": "Test Server",
+          "transport": "stdio",
+          "requiresAccessibility": true,
+          "clientName": "testClient"
+      }
   ]
 }
