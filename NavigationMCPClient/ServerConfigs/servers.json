@@ -2,7 +2,7 @@
   "servers": [
       {
           "name": "BART",
-          "address": "http://localhost:8080",
+          "address": "http://localhost:8080/mcp",
           "transport": "http",
           "requiresAccessibility": true,
           "clientName": "BartMCPClient"

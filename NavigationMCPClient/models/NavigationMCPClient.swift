@@ -21,7 +21,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     
     // MCP client variables
     private var servers: [MCPServer: Client] = [:]
-    private var clientProcesses: [MCPServer: Process?] = [:]
+    private var clientProcesses: [MCPServer: Process] = [:]
     private var openAIClient: OpenAI? = nil
     // ____________________
     
@@ -45,7 +45,14 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     }
     
     @objc func terminate() {
-        os_log("Terminating the Navigation client", log: log, type: .debug)
+        os_log("Stopping all processes the xpc client", log: log, type: .debug)
+        for process in clientProcesses.values {
+            let pid = process.processIdentifier
+            os_log("Termination process with PID: %@", log: log, type: .debug, String(pid))
+            kill(pid, SIGKILL)
+            process.waitUntilExit()
+        }
+        
         // TODO: when I make it two way communication I might need to mark client as nil
     }
     
@@ -54,7 +61,6 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         os_log("Setting up MCP Client...", log: log, type: .debug)
         // Load server configuration
         loadServerConfig()
-        // self.client = Client(name: "NudgeClient", version: "1.0")
         for server in servers.keys {
             Task {
                 do {
@@ -70,24 +76,8 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                     case .https:
                         break
                     case .stdio:
-                        let serverInputPipe = Pipe()
-                        let serverOutputPipe = Pipe()
-                        let serverInput: FileDescriptor = FileDescriptor(rawValue: serverInputPipe.fileHandleForWriting.fileDescriptor)
-                        let serverOutput: FileDescriptor = FileDescriptor(rawValue: serverOutputPipe.fileHandleForReading.fileDescriptor)
-                        let transport = StdioTransport(
-                            input: serverOutput,
-                            output: serverInput,
-                            logger: logger
-                        )
-                        let executablePath = Bundle.main.path(forResource: "NudgeServer", ofType: nil)!
-                        os_log("Executable path: %@", log: log, type: .debug, executablePath)
-                        clientProcesses[server]??.executableURL = URL(fileURLWithPath: executablePath)
-                        clientProcesses[server]??.arguments = [""]
-                        clientProcesses[server]??.standardInput = serverInputPipe
-                        clientProcesses[server]??.standardOutput = serverOutputPipe
-                        try clientProcesses[server]??.run()
-                        os_log("Running the client process to start server...", log: log, type: .debug)
-                        try await servers[server]?.connect(transport: transport)
+                        try await setupStdioClient(server)
+                        break
                     }
                     os_log("Successfully connected to server: %@", log: log, type: .info, server.name)
                 } catch {
@@ -97,6 +87,28 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         }
     }
     
+    private func setupStdioClient(_ server: MCPServer) async throws {
+        let serverInputPipe = Pipe()
+        let serverOutputPipe = Pipe()
+        let serverInput: FileDescriptor = FileDescriptor(rawValue: serverInputPipe.fileHandleForWriting.fileDescriptor)
+        let serverOutput: FileDescriptor = FileDescriptor(rawValue: serverOutputPipe.fileHandleForReading.fileDescriptor)
+        let transport = StdioTransport(
+            input: serverOutput,
+            output: serverInput,
+            logger: logger
+        )
+        let executablePath = Bundle.main.path(forResource: "NudgeServer", ofType: nil)!
+        os_log("Executable path: %@", log: log, type: .debug, executablePath)
+        clientProcesses[server] = Process()
+        clientProcesses[server]?.executableURL = URL(fileURLWithPath: executablePath)
+        clientProcesses[server]?.arguments = [""]
+        clientProcesses[server]?.standardInput = serverInputPipe
+        clientProcesses[server]?.standardOutput = serverOutputPipe
+        try clientProcesses[server]?.run()
+        os_log("Running the client process to start server...", log: log, type: .debug)
+        try await servers[server]?.connect(transport: transport)
+    }
+
     private func loadServerConfig() {
         var serverConfigs: [ServerConfig] = []
         os_log("Loading server configuration...", log: log, type: .debug)
@@ -136,7 +148,6 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                     address: serverConfig.address
                 )
                 self.servers[server] = Client(name: serverConfig.clientName, version: "1.0.0")
-                self.clientProcesses[server] = Process()
             }
             
         } catch {
@@ -230,7 +241,13 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         }
     }
     
-        
+    deinit {
+        os_log("Deinitialising the xpc client", log: log, type: .debug)
+        for process in clientProcesses.values {
+            process.terminate()
+        }
+    }
+    
 }
 
 // MARK: ALL DEBUG FUNCTIONS
