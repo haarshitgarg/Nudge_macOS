@@ -6,18 +6,22 @@
 //
 
 import Foundation
-import os
+import Logging
 import MCP
+import os
 import OpenAI
+import System
 
 
 
 /// This object implements the protocol which we have defined. It provides the actual behavior for the service. It is 'exported' by the service to make it available to the process hosting the service over an NSXPCConnection.
 class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     private let log = OSLog(subsystem: "Harshit.Nudge", category: "NavigationMCPClient")
+    private let logger = Logger(label: "Harshit.Nudge")
     
     // MCP client variables
     private var servers: [MCPServer: Client] = [:]
+    private var clientProcesses: [MCPServer: Process?] = [:]
     private var openAIClient: OpenAI? = nil
     // ____________________
     
@@ -55,7 +59,36 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             Task {
                 do {
                     os_log("Trying to connect to server: %@", log: log, type: .info, server.name)
-                    try await servers[server]?.connect(transport: server.getTransport())
+                    switch server.transport {
+                    case .http:
+                        let transport = HTTPClientTransport(
+                            endpoint: URL(string: server.address ?? "http://localhost:8081")!,
+                            logger: logger
+                        )
+                        try await servers[server]?.connect(transport: transport)
+                        break
+                    case .https:
+                        break
+                    case .stdio:
+                        let serverInputPipe = Pipe()
+                        let serverOutputPipe = Pipe()
+                        let serverInput: FileDescriptor = FileDescriptor(rawValue: serverInputPipe.fileHandleForWriting.fileDescriptor)
+                        let serverOutput: FileDescriptor = FileDescriptor(rawValue: serverOutputPipe.fileHandleForReading.fileDescriptor)
+                        let transport = StdioTransport(
+                            input: serverOutput,
+                            output: serverInput,
+                            logger: logger
+                        )
+                        let executablePath = Bundle.main.path(forResource: "NudgeServer", ofType: nil)!
+                        os_log("Executable path: %@", log: log, type: .debug, executablePath)
+                        clientProcesses[server]??.executableURL = URL(fileURLWithPath: executablePath)
+                        clientProcesses[server]??.arguments = [""]
+                        clientProcesses[server]??.standardInput = serverInputPipe
+                        clientProcesses[server]??.standardOutput = serverOutputPipe
+                        try clientProcesses[server]??.run()
+                        os_log("Running the client process to start server...", log: log, type: .debug)
+                        try await servers[server]?.connect(transport: transport)
+                    }
                     os_log("Successfully connected to server: %@", log: log, type: .info, server.name)
                 } catch {
                     os_log("Failed to connect to server %@ with error: %@", log: log, type: .error, server.name, error.localizedDescription)
@@ -91,9 +124,8 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 os_log("Server %d: %@ (%@:%d, protocol: %@, requiresAccessibility: %@)",
                        log: log, type: .debug, 
                        index + 1, 
-                       serverConfig.name, 
-                       serverConfig.host, 
-                       serverConfig.port, 
+                       serverConfig.name,
+                       serverConfig.address ?? "no address as stdio transport",
                        serverConfig.transport,
                        serverConfig.clientName,
                        serverConfig.requiresAccessibility ? "true" : "false")
@@ -101,10 +133,10 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 let server = MCPServer(
                     name: serverConfig.name,
                     transport: MCPTransport(rawValue: serverConfig.transport) ?? .stdio,
-                    host: serverConfig.host,
-                    port: serverConfig.port
+                    address: serverConfig.address
                 )
                 self.servers[server] = Client(name: serverConfig.clientName, version: "1.0.0")
+                self.clientProcesses[server] = Process()
             }
             
         } catch {
