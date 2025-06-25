@@ -6,7 +6,10 @@
 //
 
 import Foundation
+import Logging
 import MCP
+
+let logger = Logger(label: "Harshit.Nudge")
 
 enum MCPTransport: String, Codable, Sendable {
     case stdio
@@ -48,11 +51,11 @@ struct MCPServer: Codable, Sendable, Hashable {
             return StdioTransport()
         case .http:
             let url = URL(string: "http://\(host):\(port)/mcp")!
-            let transport = HTTPClientTransport(endpoint: url, streaming: self.stream)
+            let transport = HTTPClientTransport(endpoint: url, streaming: self.stream, logger: logger)
             return transport
         case .https:
             let url = URL(string: "https://\(host)/mcp")!
-            let transport = HTTPClientTransport(endpoint: url, streaming: self.stream)
+            let transport = HTTPClientTransport(endpoint: url, streaming: self.stream, logger: logger)
             return transport
         }
     }

@@ -12,6 +12,8 @@ import Foundation
     
     // Send a message from user to the MCP client
     func sendUserMessage(_ message: String)
+    
+    func terminate()
 }
 
 /*

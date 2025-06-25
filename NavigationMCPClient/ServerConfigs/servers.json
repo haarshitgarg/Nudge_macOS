@@ -1,12 +1,20 @@
 {
   "servers": [
-    {
-      "name": "BART",
-      "host": "localhost",
-      "port": 8080,
-      "transport": "http",
-      "requiresAccessibility": true,
-      "clientName": "NavigationMCPClient"
-    }
+      {
+          "name": "NUDGE Server",
+          "host": "localhost",
+          "port": 8085,
+          "transport": "http",
+          "requiresAccessibility": true,
+          "clientName": "NavigationMCPClient"
+      },
+      {
+          "name": "BART",
+          "host": "localhost",
+          "port": 8080,
+          "transport": "http",
+          "requiresAccessibility": true,
+          "clientName": "BartMCPClient"
+      }
   ]
 }

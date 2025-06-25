@@ -40,6 +40,11 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         }
     }
     
+    @objc func terminate() {
+        os_log("Terminating the Navigation client", log: log, type: .debug)
+        // TODO: when I make it two way communication I might need to mark client as nil
+    }
+    
     // MARK: - Start the MCP client settings from here
     private func setupMCPClient() {
         os_log("Setting up MCP Client...", log: log, type: .debug)
