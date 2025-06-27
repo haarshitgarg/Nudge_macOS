@@ -46,14 +46,15 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     }
     
     @objc func terminate() {
-        os_log("Stopping all processes the xpc client", log: log, type: .debug)
+        os_log("Stopping all processes the xpc client. No of clients: %d", log: log, type: .debug, serverDict.count)
         for clientInfo in serverDict.values {
-            guard let pid = clientInfo.process?.processIdentifier else {
+            if let pid = clientInfo.process?.processIdentifier  {
+                os_log("Termination process with PID: %@", log: log, type: .debug, String(pid))
+                kill(pid, SIGKILL)
+                clientInfo.process?.waitUntilExit()
+            } else {
                 os_log("No PID to kill", log: log, type: .debug)
-                return
             }
-            os_log("Termination process with PID: %@", log: log, type: .debug, String(pid))
-            kill(pid, SIGKILL)
         }
         
         // TODO: when I make it two way communication I might need to mark client as nil
