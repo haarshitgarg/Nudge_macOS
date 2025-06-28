@@ -164,7 +164,10 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     }
     
     private func communication_with_chatgpt(_ query: String) async throws {
-        // Initialize openAI client if not already initialized
+        // I have 3 different llm agents.
+        // 1. defines the initial state:
+        // 2. updates the state etc based on tool results. (no tools given to it)
+        // 3. use the mcp tools to perform various activities
         if openAIClient == nil {
             os_log("Initializing OpenAI client with API key", log: log, type: .debug)
             self.openAIClient = OpenAI(apiToken: Secrets.open_ai_key)
@@ -174,98 +177,152 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             throw NudgeError.openAIClientNotInitialized
         }
         
-        // Message to be sent to OpenAI
-        let system_message_query = """
-        You are a smart NAVIGATION ASSISTANT. You will receive user queries that will require you to navigate across various applications in mac.
-        You need to check the user queries and then based on the tools available, you will do the following:
-        1. Reply back to user about your plan
-        2. make the necessary tool call
+        var retryCount = 0
+        var goalReached: Bool = false
         
-        you will be asked to do things like: "find me "xyz" button in safar" and you are supposed to formulate a sequence of tool calls that could get
-        you that like: open_application -> get_application_stat -> get_ui_elements -> click_the_ui_e
+        // User message
+        guard let user_query = ChatQuery.ChatCompletionMessageParam(role: .user, content: query) else {
+            throw NudgeError.cannotCreateMessageForOpenAI
+        }
         
-        Your will also analyse the results from the tool calls and then revise your plan accordingly
+        // agent definitions
+        let init_agent_sys_msg: String = """
+        You are a smart llm agent that is part of a navigation tool. Your job is to define a short goal from the user query. 
+        You will be given a user query, based on that you need to return a goal. For example:
+        "user": "I want to open the browser"
+        "you": "open_safari"
+        
+        "user": "I want you to open the tool that you use to inspect accessibility elements"
+        "you": "open_accessibility_inspector"
+        
+        "user": "I want to block my calendar"
+        "you": "add_new_event_in_calendar"
         """
-        let system_message: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(role: .system, content: system_message_query)!
-        var messages: [ChatQuery.ChatCompletionMessageParam] = [system_message, ChatQuery.ChatCompletionMessageParam(role: .user, content: query)!]
         
-        // making a list of available tools
+        let update_agent_sys_msg: String = """
+        You are a smart llm agent which is part of a navigation tool. You are responsible for summarizing the knowledge of what the agent has done,
+        based on current state and previous action. You will get an input explaining the goal, last action and current knowledge,
+        you are supposed to return the updated knowledge. Example:
+        "input": "goal: add_new_event_in_calendar, last_action: search for new event button, last_server_respons: found the button, knowledge: calendar is open, need to find button to create event"
+        "output": "calendar is open, we have found the button for new event"
+        """
+        
+        let mcp_agent_sys_msg: String = """
+        You are a smart NAVIGATION ASSISTANT. you will be give a goal, last_action, last_server_response and knowledge along with appropriate tools.
+        Based on that you need to formulate the next step to reach the goal. For example:
+        "input": "goal: add_a_new_event_in_calendar, last_action: open_application, last_server_respons: calendar is now open, knowledge: "
+        
+        Your will analyse the input and based on that decide the calls to be made. If no tool call is required you send a success message to the user
+        """
+        
+        guard let init_agent_sys_query: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(role: .system, content: init_agent_sys_msg) else {
+            throw NudgeError.cannotCreateMessageForOpenAI
+        }
+        let init_agent_query: ChatQuery = ChatQuery(
+            messages: [init_agent_sys_query, user_query],
+            model: "gpt-4o-2024-08-06"
+        )
+        
+        guard let update_agent_sys_query: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(role: .system, content: update_agent_sys_msg) else {
+            throw NudgeError.cannotCreateMessageForOpenAI
+        }
+        
+        guard let mcp_agent_sys_query: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(role: .system, content: mcp_agent_sys_msg) else {
+            throw NudgeError.cannotCreateMessageForOpenAI
+        }
+
+        
+        struct chatgptstate: Codable {
+            var goal: String
+            var last_action: String = ""
+            var last_server_response: String = ""
+            var error_count: Int = 0
+            var knowledge: String = ""
+        }
+        
+        
+        // ALL ABOUT TOOLS
         var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
         for clientInfo in self.serverDict.values { chat_gpt_tools.append(contentsOf: clientInfo.chat_gpt_tools) }
 
-        let initial_query: ChatQuery = ChatQuery(
-            messages: messages,
-            model: "gpt-4o-2024-08-06",
-            tools: chat_gpt_tools)
-        
-        os_log("Sending query to OpenAI", log: log, type: .debug)
-        let initail_response_chatgpt = try await openAIClient.chats(query: initial_query)
-        
-        os_log("------------------------------------------------------", log: log, type: .debug)
-        os_log("Received response from OpenAI: %@", log: log, type: .debug, initail_response_chatgpt.choices.first?.message.content ?? "No content")
-        os_log("The tool calls list from OpenAI: %@", log: log, type: .debug, initail_response_chatgpt.choices.first?.message.toolCalls?.description ?? "No content")
-        os_log("------------------------------------------------------", log: log, type: .debug)
+        // DECIDE THE INITIAL STATE. USING A SEPERATE LLM QUERY TO FILL UP THE STATE
+        let init_agent_response_chatgpt = try await openAIClient.chats(query: init_agent_query)
+        guard let init_goal = init_agent_response_chatgpt.choices.first?.message.content else { throw NudgeError.noGoalFound}
+        var openAI_state: chatgptstate = chatgptstate(goal: init_goal)
 
-        var tool_call_list: [ChatQuery.ChatCompletionMessageParam.AssistantMessageParam.ToolCallParam] = []
-        guard let message_from_openAI = initail_response_chatgpt.choices.first?.message else {
-            throw NudgeError.noMessageFromOpenAI
-        }
-        
-        guard let openAIToolCalls = message_from_openAI.toolCalls else {
-            os_log("No tool calls from open AI", log: log, type: .debug)
-            return
-        }
-        
-        tool_call_list.append(contentsOf: openAIToolCalls)
-        while (!tool_call_list.isEmpty) {
-            os_log("Processing tool calls from OpenAI response", log: log, type: .debug)
-            let curr_tool = tool_call_list.first!
-            tool_call_list.remove(at: 0)
-            os_log("Tool call: %@", log: log, type: .debug, curr_tool.function.name)
-            for (_, clientInfo) in serverDict {
-                if let tool = clientInfo.mcp_tools.first(where: {$0.name == curr_tool.function.name}) {
-                    os_log("Found tool: %@", log: log, type: .debug, tool.name)
-                    os_log("Calling tool with arguments: %@", log: log, type: .debug, String(describing: curr_tool.function.arguments))
-                    guard let argumentsData = curr_tool.function.arguments.data(using: .utf8) else {
-                        os_log("Failed to convert arguments to Data", log: log, type: .error)
-                        throw NudgeError.cannotParseToolArguments
-                    }
-                    let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
-                    os_log("Decoded arguments: %@", log: log, type: .debug, String(describing: arguemnt_dict))
-                    let tool_result = try await clientInfo.client.callTool(name: tool.name, arguments: arguemnt_dict)
-                    os_log("Tool result: %@", log: log, type: .debug, String(describing: tool_result.content))
-                    
-                    guard let new_assistant_message =  ChatQuery.ChatCompletionMessageParam(role: .assistant, content: message_from_openAI.content ?? "", toolCalls: [curr_tool]) else {
-                        break
-                    }
-                    
-                    guard let new_message = ChatQuery.ChatCompletionMessageParam(role: .tool, content: tool_result.content.description, toolCallId: curr_tool.id) else {
-                        break
-                    }
-                    messages.append(new_assistant_message)
-                    messages.append(new_message)
-                    let query: ChatQuery = ChatQuery(
-                        messages: messages,
-                        model: "gpt-4o-2024-08-06"
-                        )
-                    
-                    os_log("Sending query to OpenAI", log: log, type: .debug)
-                    let openAIResponse = try await openAIClient.chats(query: query)
-                    os_log("------------------------------------------------------", log: log, type: .debug)
-                    os_log("Received response from OpenAI: %@", log: log, type: .debug, openAIResponse.choices.first?.message.content ?? "No content")
-                    os_log("The tool calls list from OpenAI: %@", log: log, type: .debug, openAIResponse.choices.first?.message.toolCalls ?? "No content")
-                    os_log("------------------------------------------------------", log: log, type: .debug)
-                    //messages.append(new_message)
-                    guard let openAIToolCalls = openAIResponse.choices.first?.message.toolCalls else {
-                        os_log("Cannot find any more tool calls.", log: log, type: .debug)
-                        break
-                    }
-                    tool_call_list.append(contentsOf: openAIToolCalls)
-                    break
-                }
+        // The actual loop. We keep running it for 15 retries or when the goal is reached
+        while(!goalReached && retryCount < 15) {
+            retryCount += 1
+            
+            // AGENTIC TASKS ARE PERFORMED FROM HERE
+            
+            // UPDATE THE GPT WITH THE CURRENT STATE OF THE TASK
+            guard let update_user_message = ChatQuery.ChatCompletionMessageParam(
+                role: .user,
+                content: "goal: \(openAI_state.goal), las_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), knowledge: \(openAI_state.knowledge)") else {
+                throw NudgeError.cannotCreateMessageForOpenAI
             }
             
-            // Loop over again.
+            let update_agent_query: ChatQuery = ChatQuery(
+                messages: [update_agent_sys_query, update_user_message],
+                model: "gpt-4o-2024-08-06"
+            )
+            let update_agent_response_chatgpt = try await openAIClient.chats(query: update_agent_query)
+            openAI_state.knowledge = update_agent_response_chatgpt.choices.first?.message.content ?? ""
+
+            // REQUEST THE LLM WITH THE GIVEN TOOLS TO PERFORM THE TASK
+            guard let mcp_user_message = ChatQuery.ChatCompletionMessageParam(
+                role: .user,
+                content: "goal: \(openAI_state.goal), las_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), knowledge: \(openAI_state.knowledge)") else {
+                throw NudgeError.cannotCreateMessageForOpenAI
+            }
+            let mcp_agent_query: ChatQuery = ChatQuery(
+                messages: [mcp_agent_sys_query, mcp_user_message],
+                model: "gpt-4o-2024-08-06",
+                tools: chat_gpt_tools)
+            let mcp_agent_response_chatgpt = try await openAIClient.chats(query: mcp_agent_query)
+            os_log("------------------------------------------------------", log: log, type: .debug)
+            os_log("Received response from OpenAI: %@", log: log, type: .debug, mcp_agent_response_chatgpt.choices.first?.message.content ?? "No content")
+            os_log("The tool calls list from OpenAI: %@", log: log, type: .debug, mcp_agent_response_chatgpt.choices.first?.message.toolCalls?.description ?? "No content")
+            os_log("------------------------------------------------------", log: log, type: .debug)
+
+            var tool_call_list: [ChatQuery.ChatCompletionMessageParam.AssistantMessageParam.ToolCallParam] = []
+            guard let mcp_message_from_openAI = mcp_agent_response_chatgpt.choices.first?.message else {
+                throw NudgeError.noMessageFromOpenAI
+            }
+            guard let openAIToolCalls = mcp_message_from_openAI.toolCalls else {
+                os_log("No tool calls from open AI", log: log, type: .debug)
+                return
+            }
+            tool_call_list.append(contentsOf: openAIToolCalls)
+            while (!tool_call_list.isEmpty) {
+                os_log("Processing tool calls from OpenAI response", log: log, type: .debug)
+                let curr_tool = tool_call_list.first!
+                tool_call_list.remove(at: 0)
+                os_log("Tool call: %@", log: log, type: .debug, curr_tool.function.name)
+                for (_, clientInfo) in serverDict {
+                    if let tool = clientInfo.mcp_tools.first(where: {$0.name == curr_tool.function.name}) {
+                        os_log("Found tool: %@", log: log, type: .debug, tool.name)
+                        os_log("Calling tool with arguments: %@", log: log, type: .debug, String(describing: curr_tool.function.arguments))
+                        guard let argumentsData = curr_tool.function.arguments.data(using: .utf8) else {
+                            os_log("Failed to convert arguments to Data", log: log, type: .error)
+                            throw NudgeError.cannotParseToolArguments
+                        }
+                        let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
+                        os_log("Decoded arguments: %@", log: log, type: .debug, String(describing: arguemnt_dict))
+                        let tool_result = try await clientInfo.client.callTool(name: tool.name, arguments: arguemnt_dict)
+                        os_log("Tool result: %@", log: log, type: .debug, String(describing: tool_result.content))
+                        
+                        // UPDATE THE STATE OF THE GIVEN TASK BASED ON SERVER RESPONSE
+                        openAI_state.last_action = curr_tool.function.name
+                        openAI_state.last_server_response = tool_result.content.description
+                        break
+                    }
+                }
+            }
+
+
+            // UPDATE IF GOAL REACHED
         }
     }
     
