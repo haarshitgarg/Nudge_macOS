@@ -31,6 +31,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         
         setupMCPClient()
         os_log("NavigationMCPClient initialized", log: log, type: .debug)
+        jsonEncoder.outputFormatting = [.prettyPrinted]
     }
     
     @objc func sendUserMessage(_ message: String) {
@@ -174,44 +175,97 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         }
         
         // Message to be sent to OpenAI
-        let messages: [ChatQuery.ChatCompletionMessageParam] = [ChatQuery.ChatCompletionMessageParam(role: .user, content: query)!]
+        let system_message_query = """
+        You are a smart NAVIGATION ASSISTANT. You will receive user queries that will require you to navigate across various applications in mac.
+        You need to check the user queries and then based on the tools available, you will do the following:
+        1. Reply back to user about your plan
+        2. make the necessary tool call
+        
+        you will be asked to do things like: "find me "xyz" button in safar" and you are supposed to formulate a sequence of tool calls that could get
+        you that like: open_application -> get_application_stat -> get_ui_elements -> click_the_ui_e
+        
+        Your will also analyse the results from the tool calls and then revise your plan accordingly
+        """
+        let system_message: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(role: .system, content: system_message_query)!
+        var messages: [ChatQuery.ChatCompletionMessageParam] = [system_message, ChatQuery.ChatCompletionMessageParam(role: .user, content: query)!]
+        
+        // making a list of available tools
         var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
-        for clientInfo in self.serverDict.values {
-            chat_gpt_tools.append(contentsOf: clientInfo.chat_gpt_tools)
-        }
+        for clientInfo in self.serverDict.values { chat_gpt_tools.append(contentsOf: clientInfo.chat_gpt_tools) }
 
-        let llm_query: ChatQuery = ChatQuery(
+        let initial_query: ChatQuery = ChatQuery(
             messages: messages,
             model: "gpt-4o-2024-08-06",
             tools: chat_gpt_tools)
         
         os_log("Sending query to OpenAI", log: log, type: .debug)
-        let openAIResponse = try await openAIClient.chats(query: llm_query)
+        let initail_response_chatgpt = try await openAIClient.chats(query: initial_query)
         
-        os_log("Received response from OpenAI: %@", log: log, type: .debug, openAIResponse.choices.first?.message.content ?? "No content")
         os_log("------------------------------------------------------", log: log, type: .debug)
-        os_log("The tool calls list from OpenAI: %@", log: log, type: .debug, openAIResponse.choices.first?.message.toolCalls ?? "No content")
+        os_log("Received response from OpenAI: %@", log: log, type: .debug, initail_response_chatgpt.choices.first?.message.content ?? "No content")
+        os_log("The tool calls list from OpenAI: %@", log: log, type: .debug, initail_response_chatgpt.choices.first?.message.toolCalls?.description ?? "No content")
+        os_log("------------------------------------------------------", log: log, type: .debug)
 
-        if openAIResponse.choices.first?.message.toolCalls != nil {
+        var tool_call_list: [ChatQuery.ChatCompletionMessageParam.AssistantMessageParam.ToolCallParam] = []
+        guard let message_from_openAI = initail_response_chatgpt.choices.first?.message else {
+            throw NudgeError.noMessageFromOpenAI
+        }
+        
+        guard let openAIToolCalls = message_from_openAI.toolCalls else {
+            os_log("No tool calls from open AI", log: log, type: .debug)
+            return
+        }
+        
+        tool_call_list.append(contentsOf: openAIToolCalls)
+        while (!tool_call_list.isEmpty) {
             os_log("Processing tool calls from OpenAI response", log: log, type: .debug)
-            for toolCall in openAIResponse.choices.first!.message.toolCalls! {
-                os_log("Tool call: %@", log: log, type: .debug, toolCall.function.name)
-                for (_, clientInfo) in serverDict {
-                    if let tool = clientInfo.mcp_tools.first(where: {$0.name == toolCall.function.name}) {
-                        os_log("Found tool: %@", log: log, type: .debug, tool.name)
-                        os_log("Calling tool with arguments: %@", log: log, type: .debug, String(describing: toolCall.function.arguments))
-                        guard let argumentsData = toolCall.function.arguments.data(using: .utf8) else {
-                            os_log("Failed to convert arguments to Data", log: log, type: .error)
-                            throw NudgeError.cannotParseToolArguments
-                        }
-                        let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
-                        os_log("Decoded arguments: %@", log: log, type: .debug, String(describing: arguemnt_dict))
-                        let tool_result = try await clientInfo.client.callTool(name: tool.name, arguments: arguemnt_dict)
-                        os_log("Tool result: %@", log: log, type: .debug, String(describing: tool_result.content))
+            let curr_tool = tool_call_list.first!
+            tool_call_list.remove(at: 0)
+            os_log("Tool call: %@", log: log, type: .debug, curr_tool.function.name)
+            for (_, clientInfo) in serverDict {
+                if let tool = clientInfo.mcp_tools.first(where: {$0.name == curr_tool.function.name}) {
+                    os_log("Found tool: %@", log: log, type: .debug, tool.name)
+                    os_log("Calling tool with arguments: %@", log: log, type: .debug, String(describing: curr_tool.function.arguments))
+                    guard let argumentsData = curr_tool.function.arguments.data(using: .utf8) else {
+                        os_log("Failed to convert arguments to Data", log: log, type: .error)
+                        throw NudgeError.cannotParseToolArguments
+                    }
+                    let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
+                    os_log("Decoded arguments: %@", log: log, type: .debug, String(describing: arguemnt_dict))
+                    let tool_result = try await clientInfo.client.callTool(name: tool.name, arguments: arguemnt_dict)
+                    os_log("Tool result: %@", log: log, type: .debug, String(describing: tool_result.content))
+                    
+                    guard let new_assistant_message =  ChatQuery.ChatCompletionMessageParam(role: .assistant, content: message_from_openAI.content ?? "", toolCalls: [curr_tool]) else {
                         break
                     }
+                    
+                    guard let new_message = ChatQuery.ChatCompletionMessageParam(role: .tool, content: tool_result.content.description, toolCallId: curr_tool.id) else {
+                        break
+                    }
+                    messages.append(new_assistant_message)
+                    messages.append(new_message)
+                    let query: ChatQuery = ChatQuery(
+                        messages: messages,
+                        model: "gpt-4o-2024-08-06"
+                        )
+                    
+                    os_log("Sending query to OpenAI", log: log, type: .debug)
+                    let openAIResponse = try await openAIClient.chats(query: query)
+                    os_log("------------------------------------------------------", log: log, type: .debug)
+                    os_log("Received response from OpenAI: %@", log: log, type: .debug, openAIResponse.choices.first?.message.content ?? "No content")
+                    os_log("The tool calls list from OpenAI: %@", log: log, type: .debug, openAIResponse.choices.first?.message.toolCalls ?? "No content")
+                    os_log("------------------------------------------------------", log: log, type: .debug)
+                    //messages.append(new_message)
+                    guard let openAIToolCalls = openAIResponse.choices.first?.message.toolCalls else {
+                        os_log("Cannot find any more tool calls.", log: log, type: .debug)
+                        break
+                    }
+                    tool_call_list.append(contentsOf: openAIToolCalls)
+                    break
                 }
             }
+            
+            // Loop over again.
         }
     }
     
