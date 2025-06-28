@@ -12,6 +12,7 @@ public enum NudgeError: Error, Sendable {
     case cannotGetTools
     case cannotParseToolArguments
     case openAIClientNotInitialized
+    case noMessageFromOpenAI
     
     public var getDescription: String {
         switch self {
@@ -25,6 +26,8 @@ public enum NudgeError: Error, Sendable {
             return "Failed to parse tool arguments from the server."
         case .openAIClientNotInitialized:
             return "OpenAI client is not initialized."
+        case .noMessageFromOpenAI:
+            return "No message received from openAI"
         }
     }
 }
