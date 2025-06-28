@@ -13,6 +13,8 @@ public enum NudgeError: Error, Sendable {
     case cannotParseToolArguments
     case openAIClientNotInitialized
     case noMessageFromOpenAI
+    case cannotCreateMessageForOpenAI
+    case noGoalFound
     
     public var getDescription: String {
         switch self {
@@ -28,6 +30,10 @@ public enum NudgeError: Error, Sendable {
             return "OpenAI client is not initialized."
         case .noMessageFromOpenAI:
             return "No message received from openAI"
+        case .cannotCreateMessageForOpenAI:
+            return "Cannot create a message for OpenAI"
+        case .noGoalFound:
+            return "LLM did not return any goal"
         }
     }
 }
