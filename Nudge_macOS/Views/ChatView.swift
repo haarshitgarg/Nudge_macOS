@@ -17,6 +17,7 @@ struct ChatView: View {
     var body: some View {
         VStack(spacing: 16) {
             // Main Input Bar
+            LoadingView()
             HStack(spacing: 12) {
                 Image(systemName: "sparkles")
                     .font(.title2)
