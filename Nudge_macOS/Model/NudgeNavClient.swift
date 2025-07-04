@@ -56,6 +56,20 @@ class NudgeNavClient: NSObject {
         os_log("Message sent to MCP client: %@", log: log, type: .debug, message)
     }
     
+    public func sendPing() throws {
+        guard let connection = connection else {
+            os_log("Connection is not established", log: log, type: .error)
+            throw NudgeError.connectionFailed
+        }
+        
+        let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+            os_log("Error occurred while sending message: %@", log: self.log, type: .error, error.localizedDescription)
+        } as? NavigationMCPClientProtocol
+        
+        proxy?.ping("Hello")
+        
+    }
+    
     func disconnect() {
         os_log("Disconnecting the xpc connection with nav client", log: log, type: .debug)
         os_log("Deinitialising the NudgeNavClient", log: log, type: .debug)

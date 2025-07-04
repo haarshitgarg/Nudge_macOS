@@ -14,6 +14,8 @@ import Foundation
     func sendUserMessage(_ message: String)
     
     func terminate()
+    
+    func ping(_ message: String)
 }
 
 /*

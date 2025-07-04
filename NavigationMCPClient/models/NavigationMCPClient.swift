@@ -17,6 +17,7 @@ import System
 /// This object implements the protocol which we have defined. It provides the actual behavior for the service. It is 'exported' by the service to make it available to the process hosting the service over an NSXPCConnection.
 class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     private let log = OSLog(subsystem: "Harshit.Nudge", category: "NavigationMCPClient")
+    private let log_llm = OSLog(subsystem: "Harshit.Nudge", category: "LLM")
     private let logger = Logger(label: "Harshit.Nudge")
     
     // MCP client variables
@@ -29,7 +30,6 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     override init() {
         super.init()
         
-        setupMCPClient()
         os_log("NavigationMCPClient initialized", log: log, type: .debug)
         jsonEncoder.outputFormatting = [.prettyPrinted]
     }
@@ -61,8 +61,12 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         // TODO: when I make it two way communication I might need to mark client as nil
     }
     
+    @objc func ping(_ message: String) {
+        os_log("Received ping message: %@", log: log, type: .debug, message)
+    }
+    
     // MARK: - Start the MCP client settings from here
-    private func setupMCPClient() {
+    public func setupMCPClient() {
         os_log("Setting up MCP Client...", log: log, type: .debug)
         // Load server configuration
         loadServerConfig()

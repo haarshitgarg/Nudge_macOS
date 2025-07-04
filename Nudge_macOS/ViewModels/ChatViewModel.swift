@@ -38,6 +38,7 @@ class ChatViewModel: ObservableObject {
         do {
             try nudgeClient.connect()
             try navClient.connect()
+            try navClient.sendPing()
         } catch { os_log("Failed to connect to NudgeClient: %@", log: log, type: .fault, error.localizedDescription) }
     }
     
