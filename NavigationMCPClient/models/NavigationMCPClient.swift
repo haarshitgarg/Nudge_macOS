@@ -11,8 +11,7 @@ import MCP
 import os
 import OpenAI
 import System
-
-
+import NudgeLibrary
 
 /// This object implements the protocol which we have defined. It provides the actual behavior for the service. It is 'exported' by the service to make it available to the process hosting the service over an NSXPCConnection.
 class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
@@ -38,7 +37,6 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         os_log("Received user message: %@", log: log, type: .debug, message)
         Task {
             do {
-                //try await self.debugPrintServers()
                 try await communication_with_chatgpt(message)
             } catch {
                 os_log("Error while sending user message: %@", log: log, type: .error, error.localizedDescription)
@@ -68,6 +66,18 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     // MARK: - Start the MCP client settings from here
     public func setupMCPClient() {
         os_log("Setting up MCP Client...", log: log, type: .debug)
+        // Setup the All necessary navigation
+        // This is just a dummy server will not be required
+        let navServer = MCPServer(name: "NavServer")
+        var navClientInfo = ClientInfo()
+        Task {
+            navClientInfo.mcp_tools = await NudgeLibrary.shared.getNavTools()
+            do { try getNavTools(client: &navClientInfo)}
+            catch {os_log("Error in navclient", log: log, type: .error)}
+            serverDict[navServer] = navClientInfo
+            os_log("Tools received from nudge %{public}d", log: log, type: .debug, navClientInfo.mcp_tools.count)
+        }
+        
         // Load server configuration
         loadServerConfig()
         for server in serverDict.keys {
@@ -80,7 +90,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                             endpoint: URL(string: server.address ?? "http://localhost:8081")!,
                             logger: logger
                         )
-                        try await serverDict[server]?.client.connect(transport: transport)
+                        try await serverDict[server]?.client?.connect(transport: transport)
                         try await getTools(server)
                         break
                     case .https:
@@ -88,6 +98,8 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                     case .stdio:
                         try await setupStdioClient(server)
                         try await getTools(server)
+                        break
+                    default:
                         break
                     }
                     os_log("Successfully connected to server: %@", log: log, type: .info, server.name)
@@ -117,7 +129,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         serverDict[server]?.process?.standardOutput = serverOutputPipe
         try serverDict[server]?.process?.run()
         os_log("Running the client process to start server...", log: log, type: .debug)
-        try await serverDict[server]?.client.connect(transport: transport)
+        try await serverDict[server]?.client?.connect(transport: transport)
     }
 
     private func loadServerConfig() {
@@ -165,6 +177,31 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         } catch {
             os_log("Error loading server configuration: %@", log: log, type: .error, error.localizedDescription)
         }
+    }
+    
+    private func formatUIElementsToString(_ elements: [UIElementInfo]) -> String {
+        var result = "UI Elements Found:\n"
+        
+        func formatElement(_ element: UIElementInfo, depth: Int = 0) -> String {
+            let indent = String(repeating: "  ", count: depth)
+            var elementString = "\(indent)- ID: \(element.element_id)\n"
+            elementString += "\(indent)  Description: \(element.description)\n"
+            
+            if !element.children.isEmpty {
+                elementString += "\(indent)  Children (\(element.children.count)):\n"
+                for child in element.children {
+                    elementString += formatElement(child, depth: depth + 2)
+                }
+            }
+            
+            return elementString
+        }
+        
+        for element in elements {
+            result += formatElement(element)
+        }
+        
+        return result
     }
     
     private func communication_with_chatgpt(_ query: String) async throws {
@@ -247,6 +284,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         // ALL ABOUT TOOLS
         var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
         for clientInfo in self.serverDict.values { chat_gpt_tools.append(contentsOf: clientInfo.chat_gpt_tools) }
+        os_log("Got %d tools in chat gpt", log: log, type: .debug)
 
         // DECIDE THE INITIAL STATE. USING A SEPERATE LLM QUERY TO FILL UP THE STATE
         let init_agent_response_chatgpt = try await openAIClient.chats(query: init_agent_query)
@@ -262,7 +300,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             // UPDATE THE GPT WITH THE CURRENT STATE OF THE TASK
             guard let update_user_message = ChatQuery.ChatCompletionMessageParam(
                 role: .user,
-                content: "goal: \(openAI_state.goal), las_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), knowledge: \(openAI_state.knowledge)") else {
+                content: "goal: \(openAI_state.goal), last_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), current_knowledge: \(openAI_state.knowledge)") else {
                 throw NudgeError.cannotCreateMessageForOpenAI
             }
             
@@ -276,7 +314,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             // REQUEST THE LLM WITH THE GIVEN TOOLS TO PERFORM THE TASK
             guard let mcp_user_message = ChatQuery.ChatCompletionMessageParam(
                 role: .user,
-                content: "goal: \(openAI_state.goal), las_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), knowledge: \(openAI_state.knowledge). What will you do next?") else {
+                content: "goal: \(openAI_state.goal), last_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), knowledge: \(openAI_state.knowledge). What will you do next?") else {
                 throw NudgeError.cannotCreateMessageForOpenAI
             }
             let mcp_agent_query: ChatQuery = ChatQuery(
@@ -302,26 +340,42 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 os_log("Processing tool calls from OpenAI response", log: log, type: .debug)
                 let curr_tool = tool_call_list.first!
                 tool_call_list.remove(at: 0)
-                os_log("Tool call: %@", log: log, type: .debug, curr_tool.function.name)
-                for (_, clientInfo) in serverDict {
-                    if let tool = clientInfo.mcp_tools.first(where: {$0.name == curr_tool.function.name}) {
-                        os_log("Found tool: %@", log: log, type: .debug, tool.name)
-                        os_log("Calling tool with arguments: %@", log: log, type: .debug, String(describing: curr_tool.function.arguments))
-                        guard let argumentsData = curr_tool.function.arguments.data(using: .utf8) else {
-                            os_log("Failed to convert arguments to Data", log: log, type: .error)
-                            throw NudgeError.cannotParseToolArguments
-                        }
-                        let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
-                        os_log("Decoded arguments: %@", log: log, type: .debug, String(describing: arguemnt_dict))
-                        let tool_result = try await clientInfo.client.callTool(name: tool.name, arguments: arguemnt_dict)
-                        os_log("Tool result: %@", log: log, type: .debug, String(describing: tool_result.content))
-                        
-                        // UPDATE THE STATE OF THE GIVEN TASK BASED ON SERVER RESPONSE
-                        openAI_state.last_action = curr_tool.function.name
-                        openAI_state.last_server_response = tool_result.content.description
-                        break
-                    }
+                let functionName = curr_tool.function.name
+                os_log("Tool call: %@", log: log, type: .debug, functionName)
+                guard let argumentsData = curr_tool.function.arguments.data(using: .utf8) else {
+                    os_log("Failed to convert arguments to Data", log: log, type: .error)
+                    throw NudgeError.cannotParseToolArguments
                 }
+                let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
+                os_log("Decoded arguments: %@", log: log, type: .debug, String(describing: arguemnt_dict))
+                
+                var server_response = ""
+                
+                switch functionName {
+                case "get_ui_elements":
+                    os_log("Calling get_ui_elements", log: log, type: .debug)
+                    let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.getUIElements(arguments: arguemnt_dict)
+                    server_response = formatUIElementsToString(ui_element_tree)
+                    break
+                case "click_element_by_id":
+                    os_log("Calling click_element_by_id", log: log, type: .debug)
+                    try await NudgeLibrary.shared.clickElement(arguments: arguemnt_dict)
+                    server_response = "Successfully clicked the UI element"
+                    break
+                case "update_ui_element_tree":
+                    os_log("calling update ui_element_tree", log: log, type: .debug)
+                    let ui_element_tree = try await NudgeLibrary.shared.updateUIElementTree(arguments: arguemnt_dict)
+                    server_response = formatUIElementsToString(ui_element_tree)
+                    break
+                default:
+                    break
+                }
+                
+                // Update the state with the server response for the next iteration
+                openAI_state.last_action = curr_tool.function.name
+                openAI_state.last_server_response = server_response
+                
+                // NOT DOING ANYTHING WITH THE ONLINE SERVER YET
             }
 
 
@@ -331,7 +385,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     
     private func getTools(_ server: MCPServer) async throws {
         os_log("Fetching tools from server %@", log: log, type: .debug, server.name)
-        let response = try await serverDict[server]?.client.listTools()
+        let response = try await serverDict[server]?.client?.listTools()
         serverDict[server]?.mcp_tools = response?.tools ?? []
         var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
         for tool in response?.tools ?? [] {
@@ -353,21 +407,30 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         self.serverDict[server]?.chat_gpt_tools = chat_gpt_tools
     }
     
+    private func getNavTools( client: inout ClientInfo) throws {
+        var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
+        for tool in client.mcp_tools {
+            os_log("Processing tool: %@", log: log, type: .debug, tool.name)
+            
+            let schema_data = try jsonEncoder.encode(tool.inputSchema)
+            os_log("Encoded tool schema data: %@", log: log, type: .debug, String(data: schema_data, encoding: .utf8) ?? "No data")
+            
+            let tool_schema = try jsonDecoder.decode(AnyJSONSchema.self, from: schema_data)
+            os_log("Decoded tool schema: %@", log: log, type: .debug, String(describing: tool_schema))
+            
+            let function: ChatQuery.ChatCompletionToolParam.FunctionDefinition = ChatQuery.ChatCompletionToolParam.FunctionDefinition(
+                name: tool.name,
+                description: tool.description,
+                parameters: tool_schema
+            )
+            chat_gpt_tools.append(ChatQuery.ChatCompletionToolParam(function: function))
+        }
+        client.chat_gpt_tools = chat_gpt_tools
+    }
+    
     deinit {
         os_log("Deinitialising the xpc client", log: log, type: .debug)
     }
     
-}
-
-// MARK: ALL DEBUG FUNCTIONS
-extension NavigationMCPClient {
-    func debugPrintServers() async throws {
-        for clientInfo in serverDict.values {
-            let client = clientInfo.client
-            os_log("Client Name: %@, Version: %@", log: log, type: .debug, client.name, client.version)
-            let (tools, _) = try await client.listTools()
-            os_log("Tools for client %@: %@", log: log, type: .debug, client.name, tools.map { $0.name }.joined(separator: ", "))
-        }
-    }
 }
 
