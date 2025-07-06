@@ -179,6 +179,31 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         }
     }
     
+    private func formatUIElementsToString(_ elements: [UIElementInfo]) -> String {
+        var result = "UI Elements Found:\n"
+        
+        for (index, element) in elements.enumerated() {
+            result += "Element \(index + 1):\n"
+            result += "  - ID: \(element.id)\n"
+            result += "  - Type: \(element.type)\n"
+            result += "  - Label: \(element.label ?? "No label")\n"
+            result += "  - Value: \(element.value ?? "No value")\n"
+            result += "  - Position: x=\(element.frame.x), y=\(element.frame.y)\n"
+            result += "  - Size: width=\(element.frame.width), height=\(element.frame.height)\n"
+            result += "  - Enabled: \(element.isEnabled)\n"
+            result += "  - Focused: \(element.isFocused)\n"
+            if let title = element.title {
+                result += "  - Title: \(title)\n"
+            }
+            if let description = element.description {
+                result += "  - Description: \(description)\n"
+            }
+            result += "\n"
+        }
+        
+        return result
+    }
+    
     private func communication_with_chatgpt(_ query: String) async throws {
         // I have 3 different llm agents.
         // 1. defines the initial state:
@@ -330,6 +355,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 case "get_ui_elements":
                     os_log("Calling get_ui_elements", log: log, type: .debug)
                     let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.getUIElements(arguments: arguemnt_dict)
+                    server_response = formatUIElementsToString(ui_element_tree)
                     break
                 case "click_element_by_id":
                     os_log("Calling click_element_by_id", log: log, type: .debug)
@@ -339,10 +365,16 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 case "update_ui_element_tree":
                     os_log("calling update ui_element_tree", log: log, type: .debug)
                     let ui_element_tree = try await NudgeLibrary.shared.updateUIElementTree(arguments: arguemnt_dict)
+                    server_response = formatUIElementsToString(ui_element_tree)
                     break
                 default:
                     break
                 }
+                
+                // Update the state with the server response for the next iteration
+                openAI_state.last_action = curr_tool.function.name
+                openAI_state.last_server_response = server_response
+                
 //                for (_, clientInfo) in serverDict {
 //                    if let tool = clientInfo.mcp_tools.first(where: {$0.name == curr_tool.function.name}) {
 //                        os_log("Found tool: %@", log: log, type: .debug, tool.name)
