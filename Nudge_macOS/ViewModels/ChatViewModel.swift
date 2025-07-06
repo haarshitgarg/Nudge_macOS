@@ -15,7 +15,6 @@ class ChatViewModel: ObservableObject {
     
     let log = OSLog(subsystem: "Harshit.Nudge", category: "ChatViewModel")
     
-    public let nudgeClient = NudgeClient()
     public let shortcutManager = ShortcutManager()
     public let navClient = NudgeNavClient()
     
@@ -32,7 +31,6 @@ class ChatViewModel: ObservableObject {
     private init() {
         shortcutManager.delegate = self
         do {
-            try nudgeClient.connect()
             try navClient.connect()
             try navClient.sendPing()
         } catch { os_log("Failed to connect to NudgeClient: %@", log: log, type: .fault, error.localizedDescription) }
@@ -42,9 +40,7 @@ class ChatViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         
-        let reply = try await nudgeClient.sendMessage(message: msg)
         try navClient.sendMessageToMCPClient(msg)
-        self.xcpMessage.append(XPCMessage(content: reply))
     }
     
     public func startAnimation() {
@@ -82,15 +78,8 @@ class ChatViewModel: ObservableObject {
         
         // Disconnect XPC clients (these are not MainActor isolated)
         Task.detached {
-            await self.nudgeClient.disconnect()
             await self.navClient.disconnect()
         }
-    }
-}
-
-extension ChatViewModel: NudgeDelegateProtocol {
-    func notifyShortcutPressed() {
-        os_log("Shortcut pressed notification received in ChatViewModel", log: log, type: .info)
     }
 }
 
