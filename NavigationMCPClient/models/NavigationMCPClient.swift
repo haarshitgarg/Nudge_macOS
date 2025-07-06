@@ -182,23 +182,23 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     private func formatUIElementsToString(_ elements: [UIElementInfo]) -> String {
         var result = "UI Elements Found:\n"
         
-        for (index, element) in elements.enumerated() {
-            result += "Element \(index + 1):\n"
-            result += "  - ID: \(element.id)\n"
-            result += "  - Type: \(element.type)\n"
-            result += "  - Label: \(element.label ?? "No label")\n"
-            result += "  - Value: \(element.value ?? "No value")\n"
-            result += "  - Position: x=\(element.frame.x), y=\(element.frame.y)\n"
-            result += "  - Size: width=\(element.frame.width), height=\(element.frame.height)\n"
-            result += "  - Enabled: \(element.isEnabled)\n"
-            result += "  - Focused: \(element.isFocused)\n"
-            if let title = element.title {
-                result += "  - Title: \(title)\n"
+        func formatElement(_ element: UIElementInfo, depth: Int = 0) -> String {
+            let indent = String(repeating: "  ", count: depth)
+            var elementString = "\(indent)- ID: \(element.element_id)\n"
+            elementString += "\(indent)  Description: \(element.description)\n"
+            
+            if !element.children.isEmpty {
+                elementString += "\(indent)  Children (\(element.children.count)):\n"
+                for child in element.children {
+                    elementString += formatElement(child, depth: depth + 2)
+                }
             }
-            if let description = element.description {
-                result += "  - Description: \(description)\n"
-            }
-            result += "\n"
+            
+            return elementString
+        }
+        
+        for element in elements {
+            result += formatElement(element)
         }
         
         return result
