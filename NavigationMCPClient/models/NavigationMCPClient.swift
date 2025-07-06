@@ -300,7 +300,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             // UPDATE THE GPT WITH THE CURRENT STATE OF THE TASK
             guard let update_user_message = ChatQuery.ChatCompletionMessageParam(
                 role: .user,
-                content: "goal: \(openAI_state.goal), las_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), knowledge: \(openAI_state.knowledge)") else {
+                content: "goal: \(openAI_state.goal), last_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), current_knowledge: \(openAI_state.knowledge)") else {
                 throw NudgeError.cannotCreateMessageForOpenAI
             }
             
@@ -314,7 +314,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             // REQUEST THE LLM WITH THE GIVEN TOOLS TO PERFORM THE TASK
             guard let mcp_user_message = ChatQuery.ChatCompletionMessageParam(
                 role: .user,
-                content: "goal: \(openAI_state.goal), las_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), knowledge: \(openAI_state.knowledge). What will you do next?") else {
+                content: "goal: \(openAI_state.goal), last_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), knowledge: \(openAI_state.knowledge). What will you do next?") else {
                 throw NudgeError.cannotCreateMessageForOpenAI
             }
             let mcp_agent_query: ChatQuery = ChatQuery(
@@ -375,25 +375,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 openAI_state.last_action = curr_tool.function.name
                 openAI_state.last_server_response = server_response
                 
-//                for (_, clientInfo) in serverDict {
-//                    if let tool = clientInfo.mcp_tools.first(where: {$0.name == curr_tool.function.name}) {
-//                        os_log("Found tool: %@", log: log, type: .debug, tool.name)
-//                        os_log("Calling tool with arguments: %@", log: log, type: .debug, String(describing: curr_tool.function.arguments))
-//                        guard let argumentsData = curr_tool.function.arguments.data(using: .utf8) else {
-//                            os_log("Failed to convert arguments to Data", log: log, type: .error)
-//                            throw NudgeError.cannotParseToolArguments
-//                        }
-//                        let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
-//                        os_log("Decoded arguments: %@", log: log, type: .debug, String(describing: arguemnt_dict))
-//                        let tool_result = try await clientInfo.client?.callTool(name: tool.name, arguments: arguemnt_dict)
-//                        os_log("Tool result: %@", log: log, type: .debug, String(describing: tool_result.content))
-//                        
-//                        // UPDATE THE STATE OF THE GIVEN TASK BASED ON SERVER RESPONSE
-//                        openAI_state.last_action = curr_tool.function.name
-//                        openAI_state.last_server_response = tool_result.content.description
-//                        break
-//                    }
-//                }
+                // NOT DOING ANYTHING WITH THE ONLINE SERVER YET
             }
 
 
