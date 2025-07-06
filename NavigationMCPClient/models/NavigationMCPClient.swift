@@ -182,7 +182,6 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         }
         
         var retryCount = 0
-        var goalReached: Bool = false
         
         // User message
         guard let user_query = ChatQuery.ChatCompletionMessageParam(role: .user, content: query) else {
@@ -255,7 +254,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         var openAI_state: chatgptstate = chatgptstate(goal: init_goal)
 
         // The actual loop. We keep running it for 15 retries or when the goal is reached
-        while(!goalReached && retryCount < 15) {
+        while(retryCount < 5) {
             retryCount += 1
             
             // AGENTIC TASKS ARE PERFORMED FROM HERE
@@ -277,7 +276,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             // REQUEST THE LLM WITH THE GIVEN TOOLS TO PERFORM THE TASK
             guard let mcp_user_message = ChatQuery.ChatCompletionMessageParam(
                 role: .user,
-                content: "goal: \(openAI_state.goal), las_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), knowledge: \(openAI_state.knowledge)") else {
+                content: "goal: \(openAI_state.goal), las_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), knowledge: \(openAI_state.knowledge). What will you do next?") else {
                 throw NudgeError.cannotCreateMessageForOpenAI
             }
             let mcp_agent_query: ChatQuery = ChatQuery(
