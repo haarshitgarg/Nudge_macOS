@@ -9,6 +9,7 @@ extension Notification.Name {
 class FloatingPanel: NSPanel {
     private let log = OSLog(subsystem: "Harshit.Nudge", category: "FloatingPanel")
     private var keyEventMonitor: Any?
+    private var windowObserver: Any?
     
     init(contentView: some View) {
         super.init(
@@ -32,6 +33,9 @@ class FloatingPanel: NSPanel {
         
         // Set up key event monitoring for escape key
         setupKeyEventMonitoring()
+        
+        // Set up click-outside detection
+        setupClickOutsideDetection()
     }
     
     // Override to allow the panel to become key window for text input
@@ -64,6 +68,20 @@ class FloatingPanel: NSPanel {
         }
     }
     
+    private func setupClickOutsideDetection() {
+        // Listen for when the panel loses key status (click outside)
+        windowObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: self,
+            queue: OperationQueue.main
+        ) { [weak self] notification in
+            guard let self = self else { return }
+            
+            os_log("Panel lost key status, dismissing due to click outside", log: self.log, type: .debug)
+            NotificationCenter.default.post(name: .dismissChatPanel, object: nil)
+        }
+    }
+    
     deinit {
         // Clean up resources if needed
         os_log("FloatingPanel is being deinitialized", log: log, type: .debug)
@@ -71,6 +89,11 @@ class FloatingPanel: NSPanel {
         // Remove key event monitor
         if let monitor = keyEventMonitor {
             NSEvent.removeMonitor(monitor)
+        }
+        
+        // Remove window observer
+        if let observer = windowObserver {
+            NotificationCenter.default.removeObserver(observer)
         }
         
         self.contentView = nil
