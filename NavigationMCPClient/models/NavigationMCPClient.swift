@@ -292,7 +292,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         var openAI_state: chatgptstate = chatgptstate(goal: init_goal)
 
         // The actual loop. We keep running it for 15 retries or when the goal is reached
-        while(retryCount < 5) {
+        while(retryCount < 6) {
             retryCount += 1
             
             // AGENTIC TASKS ARE PERFORMED FROM HERE
@@ -337,6 +337,11 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             }
             tool_call_list.append(contentsOf: openAIToolCalls)
             while (!tool_call_list.isEmpty) {
+                os_log("---------------------------------------", log: log_llm, type: .debug)
+                os_log("Iteration no: %d, no of tools: %d", log: log_llm, type: .debug, retryCount, tool_call_list.count)
+                
+                os_log("Knowledge: %{public}@", log: log_llm, type: .debug, openAI_state.knowledge)
+                
                 os_log("Processing tool calls from OpenAI response", log: log, type: .debug)
                 let curr_tool = tool_call_list.first!
                 tool_call_list.remove(at: 0)
