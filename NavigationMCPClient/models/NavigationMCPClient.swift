@@ -351,24 +351,29 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 
                 var server_response = ""
                 
-                switch functionName {
-                case "get_ui_elements":
-                    os_log("Calling get_ui_elements", log: log, type: .debug)
-                    let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.getUIElements(arguments: arguemnt_dict)
-                    server_response = formatUIElementsToString(ui_element_tree)
-                    break
-                case "click_element_by_id":
-                    os_log("Calling click_element_by_id", log: log, type: .debug)
-                    try await NudgeLibrary.shared.clickElement(arguments: arguemnt_dict)
-                    server_response = "Successfully clicked the UI element"
-                    break
-                case "update_ui_element_tree":
-                    os_log("calling update ui_element_tree", log: log, type: .debug)
-                    let ui_element_tree = try await NudgeLibrary.shared.updateUIElementTree(arguments: arguemnt_dict)
-                    server_response = formatUIElementsToString(ui_element_tree)
-                    break
-                default:
-                    break
+                do {
+                    switch functionName {
+                    case "get_ui_elements":
+                        os_log("Calling get_ui_elements", log: log, type: .debug)
+                        let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.getUIElements(arguments: arguemnt_dict)
+                        server_response = formatUIElementsToString(ui_element_tree)
+                        break
+                    case "click_element_by_id":
+                        os_log("Calling click_element_by_id", log: log, type: .debug)
+                        try await NudgeLibrary.shared.clickElement(arguments: arguemnt_dict)
+                        server_response = "Successfully clicked the UI element"
+                        break
+                    case "update_ui_element_tree":
+                        os_log("calling update ui_element_tree", log: log, type: .debug)
+                        let ui_element_tree = try await NudgeLibrary.shared.updateUIElementTree(arguments: arguemnt_dict)
+                        server_response = formatUIElementsToString(ui_element_tree)
+                        break
+                    default:
+                        break
+                    }
+
+                } catch {
+                    server_response = "Server responded with the following error: \(error.localizedDescription)"
                 }
                 
                 // Update the state with the server response for the next iteration
