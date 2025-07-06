@@ -99,7 +99,7 @@ struct LoadingView: View {
                 baseRadius: 45,
                 maxAmplitude: 6,
                 phase: phase,
-                centerAngle: centerAngle + 0.3
+                centerAngle: centerAngle + 0.6
             )
             .stroke(
                 LinearGradient(
@@ -115,7 +115,7 @@ struct LoadingView: View {
                 baseRadius: 45,
                 maxAmplitude: 6,
                 phase: phase,
-                centerAngle: centerAngle + 0.6
+                centerAngle: centerAngle + 1.2
             )
             .stroke(
                 LinearGradient(

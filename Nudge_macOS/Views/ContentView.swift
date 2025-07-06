@@ -9,14 +9,14 @@ import SwiftUI
 import os
 
 struct ContentView: View {
-    @StateObject private var viewModel = ChatViewModel.shared
+    @EnvironmentObject var floatingChatManager: FloatingChatManager
     
     private let log = OSLog(subsystem: "Harshit.Nudge", category: "ContentView")
     
     var body: some View {
         VStack {
             Button("Toggle Chat Window") {
-                ChatViewModel.shared.togglePanel()
+                floatingChatManager.toggleChat()
             }
         }
         .padding()

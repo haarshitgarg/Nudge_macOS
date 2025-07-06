@@ -94,12 +94,11 @@ struct ChatView: View {
         .padding()
         .scaleEffect(self.chatViewModel.animationPhase == 1 ? 1.01 : 1.0)
         .animation(.easeInOut(duration: 1.0), value: self.chatViewModel.animationPhase)
-        .onReceive(chatViewModel.$isChatVisible) { isVisible in
-            if isVisible {
-                self.chatViewModel.startAnimation()
-            } else {
-                self.chatViewModel.stopAnimation()
-            }
+        .onAppear {
+            self.chatViewModel.startAnimation()
+        }
+        .onDisappear {
+            self.chatViewModel.stopAnimation()
         }
         
     }
