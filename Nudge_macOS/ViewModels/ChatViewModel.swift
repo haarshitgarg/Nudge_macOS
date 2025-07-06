@@ -11,10 +11,6 @@ import os
 
 @MainActor
 class ChatViewModel: ObservableObject {
-    // Panel manager inserts
-    private var panel: FloatingPanel?
-    
-    //
     public static let shared = ChatViewModel()
     
     let log = OSLog(subsystem: "Harshit.Nudge", category: "ChatViewModel")
@@ -24,9 +20,9 @@ class ChatViewModel: ObservableObject {
     public let navClient = NudgeNavClient()
     
     @Published public var xcpMessage: [XPCMessage] = []
-    @Published public var isChatVisible: Bool = false
     @Published public var isAccessibleDialog: Bool = false
     @Published public var animationPhase: Int = 0
+    @Published public var isLoading: Bool = false
     
     private var animationTimer: Timer?
     private var animationCounter: Int = 0
@@ -43,6 +39,9 @@ class ChatViewModel: ObservableObject {
     }
     
     public func sendMessage(_ msg: String) async throws {
+        isLoading = true
+        defer { isLoading = false }
+        
         let reply = try await nudgeClient.sendMessage(message: msg)
         try navClient.sendMessageToMCPClient(msg)
         self.xcpMessage.append(XPCMessage(content: reply))
@@ -73,51 +72,19 @@ class ChatViewModel: ObservableObject {
 
     deinit {
         os_log("ChatViewModel is being deinitialized", log: log, type: .debug)
+        // Note: Cannot call @MainActor cleanup() from deinit
+        // Cleanup should be called explicitly before deinitialization
     }
-}
-
-// Panel Manager Extension
-extension ChatViewModel {
-    func showPanel() {
-        if panel == nil {
-            let contentView = ChatView().frame(width: 500)
-            
-            panel = FloatingPanel(contentView: contentView)
-        }
+    
+    func cleanup() {
+        os_log("Cleaning up ChatViewModel resources", log: log, type: .debug)
+        stopAnimation()
         
-        // Center and show the panel
-        if let screen = NSScreen.main {
-            let screenRect = screen.visibleFrame
-            let panelRect = panel!.frame
-            let newOrigin = NSPoint(
-                x: (screenRect.width - panelRect.width) / 2,
-                y: (screenRect.height - panelRect.height) / 2 + screenRect.height * 0.2 // Position slightly higher
-            )
-            panel?.setFrameOrigin(newOrigin)
+        // Disconnect XPC clients (these are not MainActor isolated)
+        Task.detached {
+            await self.nudgeClient.disconnect()
+            await self.navClient.disconnect()
         }
-        
-        self.isChatVisible = true
-        panel?.makeKeyAndOrderFront(nil)
-    }
-    
-    func hidePanel() {
-        self.isChatVisible = false
-        panel?.orderOut(nil)
-    }
-    
-    func togglePanel() {
-        if panel?.isVisible == true {
-            hidePanel()
-        } else {
-            showPanel()
-        }
-    }
-    
-    func cleanupPanel() {
-        os_log("Cleaning up panel resources", log: log, type: .debug)
-        self.panel?.orderOut(nil)
-        panel?.close()
-        panel = nil
     }
 }
 
@@ -139,7 +106,14 @@ extension ChatViewModel: ShortcutManagerDelegate {
 
     func shortcutManagerDidReceiveChatShortcut() {
         os_log("ShortcutManager did receive chat shortcut", log: log, type: .info)
-        self.togglePanel()
+        // This will be handled by the FloatingChatManager now
+        // We'll use NotificationCenter to communicate this event
+        NotificationCenter.default.post(name: .chatShortcutPressed, object: nil)
     }
+}
+
+// MARK: - Notification Names
+extension Notification.Name {
+    static let chatShortcutPressed = Notification.Name("chatShortcutPressed")
 }
 
