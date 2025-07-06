@@ -18,6 +18,14 @@ class FloatingChatManager: ObservableObject {
     
     init() {
         os_log("FloatingChatManager initialized", log: log, type: .debug)
+        
+        // Listen for dismiss notifications from the panel
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDismissNotification),
+            name: .dismissChatPanel,
+            object: nil
+        )
     }
     
     func showChat() {
@@ -57,8 +65,18 @@ class FloatingChatManager: ObservableObject {
         }
     }
     
+    @MainActor
+    @objc private func handleDismissNotification() {
+        os_log("Received dismiss notification, hiding chat", log: log, type: .debug)
+        hideChat()
+    }
+    
     func cleanup() {
         os_log("Cleaning up panel resources", log: log, type: .debug)
+        
+        // Remove notification observers
+        NotificationCenter.default.removeObserver(self)
+        
         panel?.orderOut(nil)
         panel?.close()
         panel = nil
