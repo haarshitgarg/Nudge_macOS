@@ -32,7 +32,7 @@ enum MCPTransport: String, Codable, Sendable {
 
 struct MCPServer: Codable, Sendable, Hashable {
     private let id: UUID
-    public let transport: MCPTransport
+    public let transport: MCPTransport?
     public let address: String?
     private var stream: Bool = true
     public let name: String
@@ -43,6 +43,13 @@ struct MCPServer: Codable, Sendable, Hashable {
         self.address = address
         self.stream = stream
         self.name = name
+    }
+    
+    init(name: String) {
+        self.id = UUID()
+        self.name = name
+        self.transport = nil
+        self.address = nil
     }
 }
 
@@ -70,10 +77,16 @@ struct ClientInfo {
     public var process: Process?
     public var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam]
     public var mcp_tools: [MCP.Tool]
-    public var client: Client
+    public var client: Client?
     
     init(client: Client) {
         self.client = client
+        chat_gpt_tools = []
+        mcp_tools = []
+    }
+    
+    init() {
+        self.client = nil
         chat_gpt_tools = []
         mcp_tools = []
     }

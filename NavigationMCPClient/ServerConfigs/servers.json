@@ -6,12 +6,5 @@
           "transport": "http",
           "requiresAccessibility": true,
           "clientName": "BartMCPClient"
-      },
-      {
-          "name": "Test Server",
-          "transport": "stdio",
-          "requiresAccessibility": true,
-          "clientName": "testClient"
       }
-  ]
 }

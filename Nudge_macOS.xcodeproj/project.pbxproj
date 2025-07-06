@@ -11,6 +11,7 @@
 		E44002182E069CE30027B8DB /* NavigationMCPClient.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = E440020C2E069CE30027B8DB /* NavigationMCPClient.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E440021F2E069DC30027B8DB /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = E440021E2E069DC30027B8DB /* MCP */; };
 		E440023A2E06F2520027B8DB /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = E44002392E06F2520027B8DB /* OpenAI */; };
+		E46AAAFE2E1A7DD4000556E3 /* NudgeLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = E46AAAFD2E1A7DD4000556E3 /* NudgeLibrary */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -188,6 +189,7 @@
 			files = (
 				E440023A2E06F2520027B8DB /* OpenAI in Frameworks */,
 				E440021F2E069DC30027B8DB /* MCP in Frameworks */,
+				E46AAAFE2E1A7DD4000556E3 /* NudgeLibrary in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -202,6 +204,7 @@
 				E414C9BE2E02E85E00DC57AA /* Nudge_macOSUITests */,
 				E414C9E92E02EC7900DC57AA /* NudgeHelper */,
 				E440020D2E069CE30027B8DB /* NavigationMCPClient */,
+				E46AAAFC2E1A7DD4000556E3 /* Frameworks */,
 				E414C9A42E02E85D00DC57AA /* Products */,
 			);
 			sourceTree = "<group>";
@@ -216,6 +219,13 @@
 				E440020C2E069CE30027B8DB /* NavigationMCPClient.xpc */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		E46AAAFC2E1A7DD4000556E3 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -333,6 +343,7 @@
 			packageProductDependencies = (
 				E440021E2E069DC30027B8DB /* MCP */,
 				E44002392E06F2520027B8DB /* OpenAI */,
+				E46AAAFD2E1A7DD4000556E3 /* NudgeLibrary */,
 			);
 			productName = NavigationMCPClient;
 			productReference = E440020C2E069CE30027B8DB /* NavigationMCPClient.xpc */;
@@ -379,6 +390,7 @@
 			packageReferences = (
 				E440021D2E069DC30027B8DB /* XCRemoteSwiftPackageReference "swift-sdk" */,
 				E44002382E06F2520027B8DB /* XCRemoteSwiftPackageReference "OpenAI" */,
+				E46AAAFB2E1A7D80000556E3 /* XCRemoteSwiftPackageReference "Nudge-Server" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E414C9A42E02E85D00DC57AA /* Products */;
@@ -910,6 +922,14 @@
 				minimumVersion = 0.4.3;
 			};
 		};
+		E46AAAFB2E1A7D80000556E3 /* XCRemoteSwiftPackageReference "Nudge-Server" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/haarshitgarg/Nudge-Server";
+			requirement = {
+				branch = "library-implementation";
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -922,6 +942,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E44002382E06F2520027B8DB /* XCRemoteSwiftPackageReference "OpenAI" */;
 			productName = OpenAI;
+		};
+		E46AAAFD2E1A7DD4000556E3 /* NudgeLibrary */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E46AAAFB2E1A7D80000556E3 /* XCRemoteSwiftPackageReference "Nudge-Server" */;
+			productName = NudgeLibrary;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
