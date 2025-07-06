@@ -14,7 +14,14 @@ class ServiceDelegate: NSObject, NSXPCListenerDelegate {
         
         // Configure the connection.
         // First, set the interface that the exported object implements.
-        newConnection.exportedInterface = NSXPCInterface(with: (any NavigationMCPClientProtocol).self)
+        let serviceInterface = NSXPCInterface(with: (any NavigationMCPClientProtocol).self)
+        let callbackInterface = NSXPCInterface(with: (any NavigationMCPClientCallbackProtocol).self)
+        
+        // Configure the service interface to accept callback client parameter
+        serviceInterface.setInterface(callbackInterface, for: #selector(NavigationMCPClientProtocol.setCallbackClient(_:)), argumentIndex: 0, ofReply: false)
+        
+        newConnection.exportedInterface = serviceInterface
+        newConnection.remoteObjectInterface = callbackInterface
         
         // Next, set the object that the connection exports. All messages sent on the connection to this service will be sent to the exported object to handle. The connection retains the exported object.
         let exportedObject = NavigationMCPClient()

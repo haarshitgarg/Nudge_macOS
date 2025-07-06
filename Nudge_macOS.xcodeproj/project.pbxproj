@@ -69,6 +69,7 @@
 		E440022C2E06A8FC0027B8DB /* Exceptions for "NavigationMCPClient" folder in "Nudge_macOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				protocols/NavigationMCPClientCallbackProtocol.swift,
 				protocols/NavigationMCPClientProtocol.swift,
 			);
 			target = E414C9A22E02E85D00DC57AA /* Nudge_macOS */;

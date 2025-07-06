@@ -22,6 +22,9 @@ class ChatViewModel: ObservableObject {
     @Published public var isAccessibleDialog: Bool = false
     @Published public var animationPhase: Int = 0
     @Published public var isLoading: Bool = false
+    @Published public var llmLoopRunning: Bool = false
+    @Published public var currentTool: String = ""
+    @Published public var llmMessages: [String] = []
     
     private var animationTimer: Timer?
     private var animationCounter: Int = 0
@@ -30,6 +33,7 @@ class ChatViewModel: ObservableObject {
     
     private init() {
         shortcutManager.delegate = self
+        navClient.delegate = self
         do {
             try navClient.connect()
             try navClient.sendPing()
@@ -98,6 +102,42 @@ extension ChatViewModel: ShortcutManagerDelegate {
         // This will be handled by the FloatingChatManager now
         // We'll use NotificationCenter to communicate this event
         NotificationCenter.default.post(name: .chatShortcutPressed, object: nil)
+    }
+}
+
+// MARK: - NudgeNavClientDelegate Implementation
+extension ChatViewModel: NudgeNavClientDelegate {
+    func onLLMLoopStarted() {
+        os_log("LLM loop started in ChatViewModel - updating UI", log: log, type: .info)
+        llmLoopRunning = true
+        currentTool = ""
+        llmMessages.removeAll()
+        startAnimation()
+    }
+    
+    func onLLMLoopFinished() {
+        os_log("LLM loop finished - updating UI", log: log, type: .debug)
+        llmLoopRunning = false
+        currentTool = ""
+        stopAnimation()
+    }
+    
+    func onToolCalled(toolName: String, arguments: String) {
+        os_log("Tool called: %@ - updating UI", log: log, type: .debug, toolName)
+        currentTool = toolName
+    }
+    
+    func onLLMMessage(_ message: String) {
+        os_log("LLM message received in ChatViewModel: %@ - updating UI", log: log, type: .info, message)
+        llmMessages.append(message)
+    }
+    
+    func onError(_ error: String) {
+        os_log("Error received: %@ - updating UI", log: log, type: .error, error)
+        llmLoopRunning = false
+        currentTool = ""
+        stopAnimation()
+        llmMessages.append("Error: \(error)")
     }
 }
 

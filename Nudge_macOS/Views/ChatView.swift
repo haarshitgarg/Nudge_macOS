@@ -16,6 +16,14 @@ struct ChatView: View {
     
     var body: some View {
         VStack(spacing: 16) {
+            // LLM Loop Status View (Dummy)
+            if chatViewModel.llmLoopRunning {
+                LLMLoopStatusView(
+                    currentTool: chatViewModel.currentTool,
+                    llmMessages: chatViewModel.llmMessages
+                )
+            }
+            
             // Main Input Bar
             HStack(spacing: 12) {
                 Image(systemName: "sparkles")
