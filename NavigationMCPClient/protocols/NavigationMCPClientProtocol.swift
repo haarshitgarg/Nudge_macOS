@@ -13,6 +13,9 @@ import Foundation
     // Send a message from user to the MCP client
     func sendUserMessage(_ message: String)
     
+    // Set the callback client for two-way communication
+    func setCallbackClient(_ client: NavigationMCPClientCallbackProtocol)
+    
     func terminate()
     
     func ping(_ message: String)

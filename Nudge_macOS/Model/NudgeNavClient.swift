@@ -8,11 +8,24 @@
 import Foundation
 import os
 
+// Protocol for NudgeNavClient to communicate with ChatViewModel
+@MainActor
+protocol NudgeNavClientDelegate: AnyObject {
+    func onLLMLoopStarted()
+    func onLLMLoopFinished()
+    func onToolCalled(toolName: String, arguments: String)
+    func onLLMMessage(_ message: String)
+    func onError(_ error: String)
+}
+
 class NudgeNavClient: NSObject {
     private let log = OSLog(subsystem: "Harshit.Nudge", category: "NudgeNavClient")
     
     // XPC Variables
     private var connection: NSXPCConnection?
+    
+    // Callback delegate
+    weak var delegate: NudgeNavClientDelegate?
     
     override init() {
         super.init()
@@ -31,10 +44,20 @@ class NudgeNavClient: NSObject {
             throw NudgeError.connectionFailed
         }
         
-        connection.remoteObjectInterface = NSXPCInterface(with: NavigationMCPClientProtocol.self)
+        let serviceInterface = NSXPCInterface(with: NavigationMCPClientProtocol.self)
+        let callbackInterface = NSXPCInterface(with: NavigationMCPClientCallbackProtocol.self)
+        serviceInterface.setInterface(callbackInterface, for: #selector(NavigationMCPClientProtocol.setCallbackClient(_:)), argumentIndex: 0, ofReply: false)
+        
+        connection.remoteObjectInterface = serviceInterface
+        connection.exportedInterface = callbackInterface
+        connection.exportedObject = self
         connection.resume()
         
         os_log("Connected to NAV MCP client service", log: log, type: .info)
+        
+        // Register callback client
+        os_log("About to register callback client", log: log, type: .info)
+        registerCallbackClient()
     }
     
     public func sendMessageToMCPClient(_ message: String) throws {
@@ -54,6 +77,20 @@ class NudgeNavClient: NSObject {
         proxy?.sendUserMessage(message)
         
         os_log("Message sent to MCP client: %@", log: log, type: .debug, message)
+    }
+    
+    public func registerCallbackClient() {
+        guard let connection = connection else {
+            os_log("Connection is not established", log: log, type: .error)
+            return
+        }
+        
+        let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+            os_log("Error occurred while registering callback: %@", log: self.log, type: .error, error.localizedDescription)
+        } as? NavigationMCPClientProtocol
+        
+        proxy?.setCallbackClient(self)
+        os_log("Registered callback client", log: log, type: .debug)
     }
     
     public func sendPing() throws {
@@ -82,5 +119,43 @@ class NudgeNavClient: NSObject {
     
     deinit {
         self.disconnect()
+    }
+}
+
+// MARK: - NavigationMCPClientCallbackProtocol Implementation
+extension NudgeNavClient: NavigationMCPClientCallbackProtocol {
+    @objc func onLLMLoopStarted() {
+        os_log("LLM loop started via XPC callback", log: log, type: .info)
+        Task { @MainActor in
+            self.delegate?.onLLMLoopStarted()
+        }
+    }
+    
+    @objc func onLLMLoopFinished() {
+        os_log("LLM loop finished", log: log, type: .debug)
+        Task { @MainActor in
+            delegate?.onLLMLoopFinished()
+        }
+    }
+    
+    @objc func onToolCalled(toolName: String, arguments: String) {
+        os_log("Tool called: %@ with arguments: %@", log: log, type: .debug, toolName, arguments)
+        Task { @MainActor in
+            delegate?.onToolCalled(toolName: toolName, arguments: arguments)
+        }
+    }
+    
+    @objc func onLLMMessage(_ message: String) {
+        os_log("LLM message received via XPC: %@", log: log, type: .info, message)
+        Task { @MainActor in
+            self.delegate?.onLLMMessage(message)
+        }
+    }
+    
+    @objc func onError(_ error: String) {
+        os_log("Error: %@", log: log, type: .error, error)
+        Task { @MainActor in
+            delegate?.onError(error)
+        }
     }
 }

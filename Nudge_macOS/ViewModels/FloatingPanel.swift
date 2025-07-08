@@ -78,7 +78,7 @@ class FloatingPanel: NSPanel {
             guard let self = self else { return }
             
             os_log("Panel lost key status, dismissing due to click outside", log: self.log, type: .debug)
-            NotificationCenter.default.post(name: .dismissChatPanel, object: nil)
+            //NotificationCenter.default.post(name: .dismissChatPanel, object: nil)
         }
     }
     

@@ -9,39 +9,24 @@ import Foundation
 import Logging
 import MCP
 import OpenAI
-import System
-
-let logger = Logger(label: "Harshit.Nudge")
 
 enum MCPTransport: String, Codable, Sendable {
     case stdio
     case http
     case https
     
-    var description: String {
-        switch self {
-        case .stdio:
-            return "Standard Input/Output"
-        case .http:
-            return "HTTP"
-        case .https:
-            return "HTTPS"
-        }
-    }
 }
 
 struct MCPServer: Codable, Sendable, Hashable {
     private let id: UUID
     public let transport: MCPTransport?
     public let address: String?
-    private var stream: Bool = true
     public let name: String
     
-    init(name: String, transport: MCPTransport, address: String?, stream: Bool = true) {
+    init(name: String, transport: MCPTransport, address: String?) {
         self.id = UUID()
         self.transport = transport
         self.address = address
-        self.stream = stream
         self.name = name
     }
     
@@ -67,10 +52,6 @@ struct ServersConfiguration: Codable, Sendable {
 }
 
 // MARK: - LLM RELATED EVERYTHING
-struct LLMQuery: Codable, Sendable {
-    let role: String
-    let content: String
-}
 
 // MARK: - Client related structures
 struct ClientInfo {

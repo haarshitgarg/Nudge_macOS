@@ -24,24 +24,41 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     private var openAIClient: OpenAI? = nil
     private let jsonEncoder: JSONEncoder = JSONEncoder()
     private let jsonDecoder: JSONDecoder = JSONDecoder()
+    
+    // Callback client for two-way communication
+    // Using strong reference to prevent deallocation during async operations
+    private var callbackClient: NavigationMCPClientCallbackProtocol?
     // ____________________
     
     override init() {
         super.init()
         
-        os_log("NavigationMCPClient initialized", log: log, type: .debug)
+        os_log("NavigationMCPClient initialized - instance: %@", log: log, type: .debug, String(describing: self))
         jsonEncoder.outputFormatting = [.prettyPrinted]
     }
     
     @objc func sendUserMessage(_ message: String) {
-        os_log("Received user message: %@", log: log, type: .debug, message)
+        os_log("Received user message: %@ on instance: %@", log: log, type: .debug, message, String(describing: self))
         Task {
             do {
                 try await communication_with_chatgpt(message)
             } catch {
                 os_log("Error while sending user message: %@", log: log, type: .error, error.localizedDescription)
+                callbackClient?.onError("Error processing message: \(error.localizedDescription)")
             }
         }
+    }
+    
+    @objc func setCallbackClient(_ client: NavigationMCPClientCallbackProtocol) {
+        os_log("Setting callback client for two-way communication: %@", log: log, type: .debug, String(describing: client))
+        self.callbackClient = client
+        
+        // Test the callback immediately
+        os_log("Testing callback client with ping message", log: log, type: .debug)
+        client.onLLMMessage("Callback client registered successfully")
+        
+        // Store a strong reference to prevent deallocation during async operations
+        // The weak reference might be getting lost during async tasks
     }
     
     @objc func terminate() {
@@ -205,6 +222,15 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     }
     
     private func communication_with_chatgpt(_ query: String) async throws {
+        // Notify client that LLM loop is starting
+        os_log("Notifying callback client: LLM loop started. Callback client exists: %@", log: log, type: .debug, callbackClient != nil ? "YES" : "NO")
+        if let client = callbackClient {
+            os_log("Calling onLLMLoopStarted on callback client", log: log, type: .debug)
+            client.onLLMLoopStarted()
+        } else {
+            os_log("ERROR: Callback client is nil when trying to notify LLM loop started", log: log, type: .error)
+        }
+        
         // I have 3 different llm agents.
         // 1. defines the initial state:
         // 2. updates the state etc based on tool results. (no tools given to it)
@@ -290,9 +316,18 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         let init_agent_response_chatgpt = try await openAIClient.chats(query: init_agent_query)
         guard let init_goal = init_agent_response_chatgpt.choices.first?.message.content else { throw NudgeError.noGoalFound}
         var openAI_state: chatgptstate = chatgptstate(goal: init_goal)
+        
+        // Notify client about the initial goal
+        os_log("Notifying callback client: Goal identified. Callback client exists: %@", log: log, type: .debug, callbackClient != nil ? "YES" : "NO")
+        if let client = callbackClient {
+            os_log("Calling onLLMMessage for goal on callback client", log: log, type: .debug)
+            client.onLLMMessage("Goal identified: \(init_goal)")
+        } else {
+            os_log("ERROR: Callback client is nil when trying to notify goal", log: log, type: .error)
+        }
 
         // The actual loop. We keep running it for 15 retries or when the goal is reached
-        while(retryCount < 5) {
+        while(retryCount < 6) {
             retryCount += 1
             
             // AGENTIC TASKS ARE PERFORMED FROM HERE
@@ -310,6 +345,9 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             )
             let update_agent_response_chatgpt = try await openAIClient.chats(query: update_agent_query)
             openAI_state.knowledge = update_agent_response_chatgpt.choices.first?.message.content ?? ""
+            
+            // Notify client about knowledge update
+            callbackClient?.onLLMMessage("Knowledge updated: \(openAI_state.knowledge)")
 
             // REQUEST THE LLM WITH THE GIVEN TOOLS TO PERFORM THE TASK
             guard let mcp_user_message = ChatQuery.ChatCompletionMessageParam(
@@ -326,6 +364,11 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             os_log("Received response from OpenAI: %@", log: log, type: .debug, mcp_agent_response_chatgpt.choices.first?.message.content ?? "No content")
             os_log("The tool calls list from OpenAI: %@", log: log, type: .debug, mcp_agent_response_chatgpt.choices.first?.message.toolCalls?.description ?? "No content")
             os_log("------------------------------------------------------", log: log, type: .debug)
+            
+            // Notify client about LLM response
+            if let content = mcp_agent_response_chatgpt.choices.first?.message.content {
+                callbackClient?.onLLMMessage("LLM Response: \(content)")
+            }
 
             var tool_call_list: [ChatQuery.ChatCompletionMessageParam.AssistantMessageParam.ToolCallParam] = []
             guard let mcp_message_from_openAI = mcp_agent_response_chatgpt.choices.first?.message else {
@@ -333,10 +376,16 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             }
             guard let openAIToolCalls = mcp_message_from_openAI.toolCalls else {
                 os_log("No tool calls from open AI", log: log, type: .debug)
+                callbackClient?.onLLMLoopFinished()
                 return
             }
             tool_call_list.append(contentsOf: openAIToolCalls)
             while (!tool_call_list.isEmpty) {
+                os_log("---------------------------------------", log: log_llm, type: .debug)
+                os_log("Iteration no: %d, no of tools: %d", log: log_llm, type: .debug, retryCount, tool_call_list.count)
+                
+                os_log("Knowledge: %{public}@", log: log_llm, type: .debug, openAI_state.knowledge)
+                
                 os_log("Processing tool calls from OpenAI response", log: log, type: .debug)
                 let curr_tool = tool_call_list.first!
                 tool_call_list.remove(at: 0)
@@ -348,6 +397,9 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 }
                 let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
                 os_log("Decoded arguments: %@", log: log, type: .debug, String(describing: arguemnt_dict))
+                
+                // Notify client about tool call
+                callbackClient?.onToolCalled(toolName: functionName, arguments: curr_tool.function.arguments)
                 
                 var server_response = ""
                 
@@ -386,6 +438,9 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
 
             // UPDATE IF GOAL REACHED
         }
+        
+        // Notify client that LLM loop has finished
+        callbackClient?.onLLMLoopFinished()
     }
     
     private func getTools(_ server: MCPServer) async throws {
