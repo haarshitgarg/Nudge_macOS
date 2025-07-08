@@ -25,7 +25,7 @@ struct InputViewTransition: ViewModifier {
             .opacity(isVisible ? 1.0 : 0.0)
             .scaleEffect(isVisible ? 1.0 : 0.85)
             .offset(y: isVisible ? 0 : -10)
-            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: isVisible)
+            .animation(.easeOut(duration: 0.5), value: isVisible)
     }
 }
 
@@ -47,6 +47,23 @@ struct ThinkingViewTransition: ViewModifier {
     }
 }
 
+struct TextViewTransition: ViewModifier {
+    let uiState: UITransitionState
+    let transitionProgress: Double
+    
+    private var isVisible: Bool {
+        uiState == .thinking || uiState == .responding || (uiState == .transitioning && transitionProgress >= 0.5)
+    }
+    
+    func body(content: Content) -> some View {
+        content
+            .opacity(isVisible ? 1.0 : 0.0)
+            .scaleEffect(isVisible ? 1.0 : 0.95)
+            .offset(y: isVisible ? 0 : 10)
+            .animation(.easeOut, value: isVisible)
+    }
+}
+
 
 // MARK: - View Extensions
 extension View {
@@ -58,5 +75,9 @@ extension View {
         self.modifier(ThinkingViewTransition(uiState: uiState, transitionProgress: progress))
     }
     
+    func textTransition(uiState: UITransitionState, progress: Double) -> some View {
+        self.modifier(TextViewTransition(uiState: uiState, transitionProgress: progress))
+    }
+
 }
 
