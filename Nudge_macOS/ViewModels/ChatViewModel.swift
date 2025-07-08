@@ -107,21 +107,16 @@ class ChatViewModel: ObservableObject {
         uiState = .transitioning
         transitionProgress = 0.0
         
-        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-            showInputView = false
-            transitionProgress = 0.5
-        }
+        // Show both views during transition so animations can work
+        showInputView = true
+        showThinkingView = true
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            withAnimation(.easeOut(duration: 0.5)) {
-                self.showThinkingView = true
-                self.transitionProgress = 1.0
-            }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.uiState = .thinking
-                self.isTransitioning = false
-            }
+        // After a brief moment, change to thinking state
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.uiState = .thinking
+            self.isTransitioning = false
+            self.showInputView = false
+            self.transitionProgress = 1.0
         }
     }
     
@@ -132,21 +127,16 @@ class ChatViewModel: ObservableObject {
         uiState = .transitioning
         transitionProgress = 1.0
         
-        withAnimation(.easeIn(duration: 0.3)) {
-            showThinkingView = false
-            transitionProgress = 0.5
-        }
+        // Show both views during transition so animations can work
+        showInputView = true
+        showThinkingView = true
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                self.showInputView = true
-                self.transitionProgress = 0.0
-            }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                self.uiState = .input
-                self.isTransitioning = false
-            }
+        // After a brief moment, change to input state
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.uiState = .input
+            self.isTransitioning = false
+            self.showThinkingView = false
+            self.transitionProgress = 0.0
         }
     }
     

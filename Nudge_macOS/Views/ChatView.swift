@@ -106,7 +106,9 @@ struct ChatView: View {
             if chatViewModel.showThinkingView {
                 LLMLoopStatusView(
                     currentTool: chatViewModel.currentTool,
-                    llmMessages: chatViewModel.llmMessages
+                    llmMessages: chatViewModel.llmMessages,
+                    uiState: chatViewModel.uiState,
+                    transitionProgress: chatViewModel.transitionProgress
                 )
                 .thinkingTransition(
                     uiState: chatViewModel.uiState,

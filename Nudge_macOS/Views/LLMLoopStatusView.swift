@@ -10,6 +10,8 @@ import SwiftUI
 struct LLMLoopStatusView: View {
     let currentTool: String
     let llmMessages: [String]
+    let uiState: UITransitionState
+    let transitionProgress: Double
     
     @State private var animationPhase: Double = 0
     
@@ -45,7 +47,9 @@ struct LLMLoopStatusView: View {
             "Goal identified: open_safari",
             "Knowledge updated: Safari application is being located",
             "Tool called: get_ui_elements with arguments: {...}"
-        ]
+        ],
+        uiState: .thinking,
+        transitionProgress: 1.0
     )
     .frame(width: 400)
     .padding()
