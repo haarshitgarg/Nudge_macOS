@@ -9,6 +9,23 @@ import Foundation
 import SwiftUI
 import os
 
+// MARK: - UI Transition States
+enum UITransitionState: String, CaseIterable {
+    case input = "input"
+    case transitioning = "transitioning"
+    case thinking = "thinking"
+    case responding = "responding"
+    
+    var isInteractionEnabled: Bool {
+        switch self {
+        case .input:
+            return true
+        case .transitioning, .thinking, .responding:
+            return false
+        }
+    }
+}
+
 @MainActor
 class ChatViewModel: ObservableObject {
     public static let shared = ChatViewModel()
@@ -26,6 +43,13 @@ class ChatViewModel: ObservableObject {
     @Published public var currentTool: String = ""
     @Published public var llmMessages: [String] = []
     
+    // MARK: - UI Transition State Management
+    @Published public var uiState: UITransitionState = .input
+    @Published public var isTransitioning: Bool = false
+    @Published public var transitionProgress: Double = 0.0
+    @Published public var showInputView: Bool = true
+    @Published public var showThinkingView: Bool = false
+    
     private var animationTimer: Timer?
     private var animationCounter: Int = 0
     private let maxAnimationCount: Int = 10
@@ -41,8 +65,13 @@ class ChatViewModel: ObservableObject {
     }
     
     public func sendMessage(_ msg: String) async throws {
+        guard uiState.isInteractionEnabled else { return }
+        
         isLoading = true
         defer { isLoading = false }
+        
+        // Initiate transition to thinking state
+        transitionToThinking()
         
         try navClient.sendMessageToMCPClient(msg)
     }
@@ -68,6 +97,61 @@ class ChatViewModel: ObservableObject {
         animationTimer?.invalidate()
         animationTimer = nil
         animationPhase = 0
+    }
+    
+    // MARK: - UI Transition State Machine
+    public func transitionToThinking() {
+        guard uiState == .input else { return }
+        
+        isTransitioning = true
+        uiState = .transitioning
+        transitionProgress = 0.0
+        
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            showInputView = false
+            transitionProgress = 0.5
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.easeOut(duration: 0.5)) {
+                self.showThinkingView = true
+                self.transitionProgress = 1.0
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.uiState = .thinking
+                self.isTransitioning = false
+            }
+        }
+    }
+    
+    public func transitionToInput() {
+        guard uiState == .thinking else { return }
+        
+        isTransitioning = true
+        uiState = .transitioning
+        transitionProgress = 1.0
+        
+        withAnimation(.easeIn(duration: 0.3)) {
+            showThinkingView = false
+            transitionProgress = 0.5
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                self.showInputView = true
+                self.transitionProgress = 0.0
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                self.uiState = .input
+                self.isTransitioning = false
+            }
+        }
+    }
+    
+    public func updateTransitionProgress(_ progress: Double) {
+        transitionProgress = max(0.0, min(1.0, progress))
     }
 
     deinit {
@@ -113,6 +197,7 @@ extension ChatViewModel: NudgeNavClientDelegate {
         currentTool = ""
         llmMessages.removeAll()
         startAnimation()
+        transitionToThinking()
     }
     
     func onLLMLoopFinished() {
@@ -120,6 +205,7 @@ extension ChatViewModel: NudgeNavClientDelegate {
         llmLoopRunning = false
         currentTool = ""
         stopAnimation()
+        transitionToInput()
     }
     
     func onToolCalled(toolName: String, arguments: String) {
@@ -138,6 +224,7 @@ extension ChatViewModel: NudgeNavClientDelegate {
         currentTool = ""
         stopAnimation()
         llmMessages.append("Error: \(error)")
+        transitionToInput()
     }
 }
 
