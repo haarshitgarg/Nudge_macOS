@@ -35,8 +35,6 @@ class ChatViewModel: ObservableObject {
     public let shortcutManager = ShortcutManager()
     public let navClient = NudgeNavClient()
     
-    @Published public var xcpMessage: [XPCMessage] = []
-    @Published public var isAccessibleDialog: Bool = false
     @Published public var animationPhase: Int = 0
     @Published public var isLoading: Bool = false
     @Published public var llmLoopRunning: Bool = false
@@ -52,7 +50,6 @@ class ChatViewModel: ObservableObject {
     
     private var animationTimer: Timer?
     private var animationCounter: Int = 0
-    private let maxAnimationCount: Int = 10
     
     
     private init() {
@@ -83,7 +80,7 @@ class ChatViewModel: ObservableObject {
             guard let self = self else { return }
             DispatchQueue.main.async {
                 self.animationCounter += 1
-                if self.animationCounter >= self.maxAnimationCount {
+                if self.animationCounter >= 10 {
                     self.stopAnimation()
                 } else {
                     self.animationPhase = self.animationPhase % 2 == 0 ? 1 : 0
@@ -140,9 +137,6 @@ class ChatViewModel: ObservableObject {
         }
     }
     
-    public func updateTransitionProgress(_ progress: Double) {
-        transitionProgress = max(0.0, min(1.0, progress))
-    }
 
     deinit {
         os_log("ChatViewModel is being deinitialized", log: log, type: .debug)

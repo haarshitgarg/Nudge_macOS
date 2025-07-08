@@ -10,11 +10,9 @@ import Foundation
 struct XPCMessage {
     public let id: UUID
     public let content: String
-    public let timestamp: Date
     
     init(content: String) {
         self.id = UUID()
         self.content = content
-        self.timestamp = Date()
     }
 }

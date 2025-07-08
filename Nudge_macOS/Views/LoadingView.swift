@@ -8,7 +8,6 @@
 import SwiftUI
 
 struct CircularThread: Shape {
-    var baseRadius: Double
     var maxAmplitude: Double
     var phase: Double
     var centerAngle: Double // The angle where amplitude is maximum
@@ -79,7 +78,6 @@ struct LoadingView: View {
             
             // Animated circular thread
             CircularThread(
-                baseRadius: 45,
                 maxAmplitude: 6,
                 phase: phase,
                 centerAngle: centerAngle
@@ -96,7 +94,6 @@ struct LoadingView: View {
             
             
             CircularThread(
-                baseRadius: 45,
                 maxAmplitude: 6,
                 phase: phase,
                 centerAngle: centerAngle + 0.6
@@ -112,7 +109,6 @@ struct LoadingView: View {
             .frame(width: 40, height: 40)
             
             CircularThread(
-                baseRadius: 45,
                 maxAmplitude: 6,
                 phase: phase,
                 centerAngle: centerAngle + 1.2
@@ -128,7 +124,6 @@ struct LoadingView: View {
             .frame(width: 40, height: 40)
             
             CircularThread(
-                baseRadius: 45,
                 maxAmplitude: 6,
                 phase: phase,
                 centerAngle: centerAngle + 0.9

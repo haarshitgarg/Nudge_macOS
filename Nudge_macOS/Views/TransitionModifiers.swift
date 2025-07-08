@@ -13,7 +13,7 @@ import SwiftUI
 // MARK: - Custom Transition Modifiers
 struct InputViewTransition: ViewModifier {
     let uiState: UITransitionState
-    let transitionProgress: Double
+    let progress: Double
     
     private var isVisible: Bool {
         switch uiState {
@@ -26,19 +26,18 @@ struct InputViewTransition: ViewModifier {
     
     func body(content: Content) -> some View {
         // Debug logging
-        let _ = print("InputViewTransition: uiState=\(uiState), progress=\(transitionProgress), isVisible=\(isVisible)")
+        let _ = print("InputViewTransition: uiState=\(uiState), isVisible=\(isVisible)")
         
         return content
             .opacity(isVisible ? 1.0 : 0.0)
-            .scaleEffect(isVisible ? 1.0 : 0.85)
-            .offset(y: isVisible ? 0 : -10)
-            .animation(.bouncy(duration: 0.5), value: isVisible)
+            .offset(x: isVisible ? 0 : -500)
+            .animation(.smooth(duration: 0.5), value: isVisible)
     }
 }
 
 struct ThinkingViewTransition: ViewModifier {
     let uiState: UITransitionState
-    let transitionProgress: Double
+    let progress: Double
     
     private var isVisible: Bool {
         switch uiState {
@@ -51,53 +50,26 @@ struct ThinkingViewTransition: ViewModifier {
     
     func body(content: Content) -> some View {
         // Debug logging
-        let _ = print("ThinkingViewTransition: uiState=\(uiState), progress=\(transitionProgress), isVisible=\(isVisible)")
+        let _ = print("ThinkingViewTransition: uiState=\(uiState), isVisible=\(isVisible)")
         
         return content
             .opacity(isVisible ? 1.0 : 0.0)
-            .scaleEffect(isVisible ? 1.0 : 0.95)
-            .offset(y: isVisible ? 0 : 10)
-            .animation(.easeOut(duration: 0.5), value: isVisible)
+            .offset(x: isVisible ? 0 : -500)
+            .animation(.smooth(duration: 0.5), value: isVisible)
     }
 }
 
-struct TextViewTransition: ViewModifier {
-    let uiState: UITransitionState
-    let transitionProgress: Double
-    
-    private var isVisible: Bool {
-        switch uiState {
-        case .input, .transitioning:
-            return false
-        case .thinking, .responding:
-            return true
-        }
-    }
-    
-    func body(content: Content) -> some View {
-        content
-            .opacity(isVisible ? 1.0 : 0.0)
-            .scaleEffect(isVisible ? 1.0 : 0.95)
-            .offset(y: isVisible ? 0 : 10)
-            .animation(.easeOut(duration: 0.5), value: isVisible)
-    }
-}
 
 
 // MARK: - View Extensions
 extension View {
     func inputTransition(uiState: UITransitionState, progress: Double) -> some View {
-        self.modifier(InputViewTransition(uiState: uiState, transitionProgress: progress))
+        self.modifier(InputViewTransition(uiState: uiState, progress: progress))
     }
     
     func thinkingTransition(uiState: UITransitionState, progress: Double) -> some View {
-        self.modifier(ThinkingViewTransition(uiState: uiState, transitionProgress: progress))
+        self.modifier(ThinkingViewTransition(uiState: uiState, progress: progress))
     }
-    
-    func textTransition(uiState: UITransitionState, progress: Double) -> some View {
-        self.modifier(TextViewTransition(uiState: uiState, transitionProgress: progress))
-    }
-
 }
 
 // MARK: - Preview for Testing Transitions
@@ -167,4 +139,5 @@ struct TransitionPreview: View {
 #Preview {
     TransitionPreview()
 }
+
 
