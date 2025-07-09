@@ -32,7 +32,8 @@ class FloatingChatManager: ObservableObject {
         os_log("Showing chat panel", log: log, type: .debug)
         
         if panel == nil {
-            let contentView = ChatView().frame(width: 500)
+            let contentView = ChatView()
+                .frame(minWidth: 500, maxWidth: 600, alignment: .center)
             panel = FloatingPanel(contentView: contentView)
         }
         

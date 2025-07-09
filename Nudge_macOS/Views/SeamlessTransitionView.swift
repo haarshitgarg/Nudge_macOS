@@ -23,13 +23,11 @@ struct SeamlessTransitionView: View {
                 .rotationEffect(.degrees(animationPhase == 1 ? 10 : 0))
                 .opacity(uiState == .input ? 1.0 : 0.0)
                 .animation(.easeInOut(duration: 1), value: animationPhase)
-                .animation(.easeInOut(duration: 0.3), value: uiState)
             
-            // Loading circles (in all non-input states)
+            // Loading circles (in all non-input states) - instant transition
             LoadingView()
                 .opacity(uiState != .input ? 1.0 : 0.0)
                 .scaleEffect(uiState != .input ? 1.0 : 0.8)
-                .animation(.easeInOut(duration: 0.3), value: uiState)
         }
     }
 }

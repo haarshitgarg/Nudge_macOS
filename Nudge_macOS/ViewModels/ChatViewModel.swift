@@ -106,27 +106,21 @@ class ChatViewModel: ObservableObject {
         
         isTransitioning = true
         
-        // Simple transition: Input → Loading → Thinking
-        withAnimation(.easeOut(duration: 0.4)) {
-            uiState = .transitioning
-            showInputView = false
-        }
+        // Instant transition: Input → Loading → Thinking
+        uiState = .transitioning
+        showInputView = false
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            withAnimation(.easeIn(duration: 0.3)) {
-                self.uiState = .thinking
-                self.showThinkingView = true
-                self.isTransitioning = false
-            }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.uiState = .thinking
+            self.showThinkingView = true
+            self.isTransitioning = false
         }
     }
     
     public func transitionToResponding() {
         guard uiState == .thinking else { return }
         
-        withAnimation(.easeInOut(duration: 0.3)) {
-            uiState = .responding
-        }
+        uiState = .responding
     }
     
     public func transitionToInput() {
@@ -134,18 +128,14 @@ class ChatViewModel: ObservableObject {
         
         isTransitioning = true
         
-        // Simple transition: Thinking → Loading → Input
-        withAnimation(.easeOut(duration: 0.3)) {
-            uiState = .transitioning
-            showThinkingView = false
-        }
+        // Instant transition: Thinking → Loading → Input
+        uiState = .transitioning
+        showThinkingView = false
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            withAnimation(.easeIn(duration: 0.4)) {
-                self.uiState = .input
-                self.showInputView = true
-                self.isTransitioning = false
-            }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.uiState = .input
+            self.showInputView = true
+            self.isTransitioning = false
         }
     }
     
