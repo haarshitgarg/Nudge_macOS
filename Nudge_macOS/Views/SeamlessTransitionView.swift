@@ -11,8 +11,6 @@ struct SeamlessTransitionView: View {
     let uiState: UITransitionState
     let animationPhase: Int
     
-    @State private var morphProgress: Double = 0.0
-    
     var body: some View {
         ZStack {
             // Sparkles icon (only in input state)
