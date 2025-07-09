@@ -12,15 +12,18 @@ import os
 // MARK: - UI Transition States
 enum UITransitionState: String, CaseIterable {
     case input = "input"
+    case shrinking = "shrinking"
+    case sparkles = "sparkles"
     case transitioning = "transitioning"
     case thinking = "thinking"
     case responding = "responding"
+    case expanding = "expanding"
     
     var isInteractionEnabled: Bool {
         switch self {
         case .input:
             return true
-        case .transitioning, .thinking, .responding:
+        case .shrinking, .sparkles, .transitioning, .thinking, .responding, .expanding:
             return false
         }
     }
@@ -46,6 +49,7 @@ class ChatViewModel: ObservableObject {
     @Published public var isTransitioning: Bool = false
     @Published public var transitionProgress: Double = 0.0
     @Published public var showInputView: Bool = true
+    @Published public var showSparklesView: Bool = false
     @Published public var showThinkingView: Bool = false
     
     private var animationTimer: Timer?
@@ -101,39 +105,37 @@ class ChatViewModel: ObservableObject {
         guard uiState == .input else { return }
         
         isTransitioning = true
+        
+        // Instant transition: Input → Loading → Thinking
         uiState = .transitioning
-        transitionProgress = 0.0
+        showInputView = false
         
-        // Show both views during transition so animations can work
-        showInputView = true
-        showThinkingView = true
-        
-        // After a brief moment, change to thinking state
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.uiState = .thinking
+            self.showThinkingView = true
             self.isTransitioning = false
-            self.showInputView = false
-            self.transitionProgress = 1.0
         }
     }
     
-    public func transitionToInput() {
+    public func transitionToResponding() {
         guard uiState == .thinking else { return }
         
+        uiState = .responding
+    }
+    
+    public func transitionToInput() {
+        guard uiState == .thinking || uiState == .responding else { return }
+        
         isTransitioning = true
+        
+        // Instant transition: Thinking → Loading → Input
         uiState = .transitioning
-        transitionProgress = 1.0
+        showThinkingView = false
         
-        // Show both views during transition so animations can work
-        showInputView = true
-        showThinkingView = true
-        
-        // After a brief moment, change to input state
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             self.uiState = .input
+            self.showInputView = true
             self.isTransitioning = false
-            self.showThinkingView = false
-            self.transitionProgress = 0.0
         }
     }
     
@@ -195,6 +197,11 @@ extension ChatViewModel: NudgeNavClientDelegate {
     func onToolCalled(toolName: String, arguments: String) {
         os_log("Tool called: %@ - updating UI", log: log, type: .debug, toolName)
         currentTool = toolName
+        
+        // Transition to responding state when tool is called
+        if uiState == .thinking {
+            transitionToResponding()
+        }
     }
     
     func onLLMMessage(_ message: String) {
