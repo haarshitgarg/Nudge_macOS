@@ -113,20 +113,35 @@ struct ChatView: View {
                             uiState: chatViewModel.uiState,
                             animationPhase: chatViewModel.animationPhase
                         )
+                        .background(
+                            ZStack {
+                                LinearGradient(
+                                    colors: [.purple.opacity(0.4), .blue.opacity(0.4)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                                Color.clear.background(.regularMaterial)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                            .opacity(chatViewModel.uiState == .transitioning || chatViewModel.uiState == .thinking ? 1.0 : 0.0)
+                        )
+                        .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
                         
                         // Content area - only appears in thinking state
                         if chatViewModel.showThinkingView {
                             VStack(alignment: .leading, spacing: 12) {
                                 // Status text
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("LLM IS THINKING...")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(.primary)
                                     
                                     if !chatViewModel.currentTool.isEmpty {
                                         Text("Tool: \(chatViewModel.currentTool)")
-                                            .font(.system(size: 12, weight: .regular))
-                                            .foregroundColor(.secondary)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundColor(.primary)
+                                    } else {
+                                        Text("Let me think...")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(.primary)
+                                            .opacity(chatViewModel.currentTool.isEmpty ? 1.0 : 0.0)
                                     }
                                 }
                                 .padding(.horizontal, 16)
