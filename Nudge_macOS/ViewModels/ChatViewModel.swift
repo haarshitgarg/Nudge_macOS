@@ -72,7 +72,7 @@ class ChatViewModel: ObservableObject {
         defer { isLoading = false }
         
         // Initiate transition to thinking state
-        transitionToThinking()
+        //transitionToThinking()
         
         try navClient.sendMessageToMCPClient(msg)
     }

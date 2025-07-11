@@ -24,6 +24,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     private var openAIClient: OpenAI? = nil
     private let jsonEncoder: JSONEncoder = JSONEncoder()
     private let jsonDecoder: JSONDecoder = JSONDecoder()
+    private var nudgeAgent: NudgeAgent = NudgeAgent()
     
     // Callback client for two-way communication
     // Using strong reference to prevent deallocation during async operations
@@ -35,13 +36,26 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         
         os_log("NavigationMCPClient initialized - instance: %@", log: log, type: .debug, String(describing: self))
         jsonEncoder.outputFormatting = [.prettyPrinted]
+        os_log("Initializing the nudge agent", log: log, type: .debug)
+        
+        do {
+            try self.nudgeAgent.defineWorkFlow()
+        } catch {
+            os_log("Nudge Agent workflow returned with error: %{public}@", log: log, type: .debug, error.localizedDescription)
+        }
+        
     }
     
     @objc func sendUserMessage(_ message: String) {
         os_log("Received user message: %@ on instance: %@", log: log, type: .debug, message, String(describing: self))
         Task {
             do {
-                try await communication_with_chatgpt(message)
+                //try await communication_with_chatgpt(message)
+                self.callbackClient?.onLLMLoopStarted()
+                sleep(5)
+                let final_state = try await self.nudgeAgent.agent?.invoke(inputs: [:])
+                self.callbackClient?.onLLMLoopFinished()
+                os_log("Reached final state", log: log, type: .debug)
             } catch {
                 os_log("Error while sending user message: %@", log: log, type: .error, error.localizedDescription)
                 callbackClient?.onError("Error processing message: \(error.localizedDescription)")
@@ -94,6 +108,8 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             serverDict[navServer] = navClientInfo
             os_log("Tools received from nudge %{public}d", log: log, type: .debug, navClientInfo.mcp_tools.count)
         }
+        
+        
         
         // Load server configuration
         loadServerConfig()
