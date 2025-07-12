@@ -24,7 +24,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     private var openAIClient: OpenAI? = nil
     private let jsonEncoder: JSONEncoder = JSONEncoder()
     private let jsonDecoder: JSONDecoder = JSONDecoder()
-    private var nudgeAgent: NudgeAgent = NudgeAgent()
+    private var nudgeAgent: NudgeAgent
     
     // Callback client for two-way communication
     // Using strong reference to prevent deallocation during async operations
@@ -32,17 +32,15 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     // ____________________
     
     override init() {
+        self.nudgeAgent = try! NudgeAgent()
         super.init()
         
         os_log("NavigationMCPClient initialized - instance: %@", log: log, type: .debug, String(describing: self))
         jsonEncoder.outputFormatting = [.prettyPrinted]
         os_log("Initializing the nudge agent", log: log, type: .debug)
         
-        do {
-            try self.nudgeAgent.defineWorkFlow()
-        } catch {
-            os_log("Nudge Agent workflow returned with error: %{public}@", log: log, type: .debug, error.localizedDescription)
-        }
+        try! self.nudgeAgent.defineWorkFlow()
+        os_log("✅ Workflow compilation completed successfully", log: log, type: .info)
         
     }
     
@@ -52,10 +50,17 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             do {
                 //try await communication_with_chatgpt(message)
                 self.callbackClient?.onLLMLoopStarted()
-                sleep(5)
-                let final_state = try await self.nudgeAgent.agent?.invoke(inputs: [:])
+                sleep(1)
+                // Set the user query in the agent state before invoking
+                let tools = self.getTools()
+                os_log("Updating agent with %d tools", log: log, type: .debug, tools.count)
+                self.nudgeAgent.updateTools(tools)
+                self.nudgeAgent.state.data["user_query"] = message
+                os_log("Set user query in agent state: %@", log: log, type: .debug, message)
+                
+                let final_state = try await self.nudgeAgent.invoke()
                 self.callbackClient?.onLLMLoopFinished()
-                os_log("Reached final state", log: log, type: .debug)
+                os_log("Reached final state %@", log: log, type: .debug, final_state.debugDescription)
             } catch {
                 os_log("Error while sending user message: %@", log: log, type: .error, error.localizedDescription)
                 callbackClient?.onError("Error processing message: \(error.localizedDescription)")
@@ -95,52 +100,59 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     }
     
     // MARK: - Start the MCP client settings from here
-    public func setupMCPClient() {
+    public func setupMCPClient() async {
         os_log("Setting up MCP Client...", log: log, type: .debug)
         // Setup the All necessary navigation
         // This is just a dummy server will not be required
         let navServer = MCPServer(name: "NavServer")
         var navClientInfo = ClientInfo()
-        Task {
-            navClientInfo.mcp_tools = await NudgeLibrary.shared.getNavTools()
-            do { try getNavTools(client: &navClientInfo)}
-            catch {os_log("Error in navclient", log: log, type: .error)}
-            serverDict[navServer] = navClientInfo
-            os_log("Tools received from nudge %{public}d", log: log, type: .debug, navClientInfo.mcp_tools.count)
-        }
         
-        
+        navClientInfo.mcp_tools = await NudgeLibrary.shared.getNavTools()
+        do { try getNavTools(client: &navClientInfo)}
+        catch {os_log("Error in navclient", log: log, type: .error)}
+        serverDict[navServer] = navClientInfo
+        os_log("Tools received from nudge %{public}d", log: log, type: .debug, navClientInfo.mcp_tools.count)
         
         // Load server configuration
         loadServerConfig()
+        
+        // Process all servers sequentially to ensure proper loading
         for server in serverDict.keys {
-            Task {
-                do {
-                    os_log("Trying to connect to server: %@", log: log, type: .info, server.name)
-                    switch server.transport {
-                    case .http:
-                        let transport = HTTPClientTransport(
-                            endpoint: URL(string: server.address ?? "http://localhost:8081")!,
-                            logger: logger
-                        )
-                        try await serverDict[server]?.client?.connect(transport: transport)
-                        try await getTools(server)
-                        break
-                    case .https:
-                        break
-                    case .stdio:
-                        try await setupStdioClient(server)
-                        try await getTools(server)
-                        break
-                    default:
-                        break
-                    }
-                    os_log("Successfully connected to server: %@", log: log, type: .info, server.name)
-                } catch {
-                    os_log("Failed to connect to server %@ with error: %@", log: log, type: .error, server.name, error.localizedDescription)
+            do {
+                os_log("Trying to connect to server: %@", log: log, type: .info, server.name)
+                switch server.transport {
+                case .http:
+                    let transport = HTTPClientTransport(
+                        endpoint: URL(string: server.address ?? "http://localhost:8081")!,
+                        logger: logger
+                    )
+                    try await serverDict[server]?.client?.connect(transport: transport)
+                    try await getTools(server)
+                    break
+                case .https:
+                    break
+                case .stdio:
+                    try await setupStdioClient(server)
+                    try await getTools(server)
+                    break
+                default:
+                    break
                 }
+                os_log("Successfully connected to server: %@", log: log, type: .info, server.name)
+            } catch {
+                os_log("Failed to connect to server %@ with error: %@", log: log, type: .error, server.name, error.localizedDescription)
             }
         }
+        
+        os_log("MCP Client setup completed. Total tools loaded: %d", log: log, type: .info, getTools().count)
+    }
+    
+    private func getTools() -> [ChatQuery.ChatCompletionToolParam] {
+        var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
+        for clientInfo in self.serverDict.values { chat_gpt_tools.append(contentsOf: clientInfo.chat_gpt_tools) }
+        os_log("Got %d tools in chat gpt", log: log, type: .debug, chat_gpt_tools.count)
+        
+        return chat_gpt_tools
     }
     
     private func setupStdioClient(_ server: MCPServer) async throws {
@@ -210,253 +222,6 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         } catch {
             os_log("Error loading server configuration: %@", log: log, type: .error, error.localizedDescription)
         }
-    }
-    
-    private func formatUIElementsToString(_ elements: [UIElementInfo]) -> String {
-        var result = "UI Elements Found:\n"
-        
-        func formatElement(_ element: UIElementInfo, depth: Int = 0) -> String {
-            let indent = String(repeating: "  ", count: depth)
-            var elementString = "\(indent)- ID: \(element.element_id)\n"
-            elementString += "\(indent)  Description: \(element.description)\n"
-            
-            if !element.children.isEmpty {
-                elementString += "\(indent)  Children (\(element.children.count)):\n"
-                for child in element.children {
-                    elementString += formatElement(child, depth: depth + 2)
-                }
-            }
-            
-            return elementString
-        }
-        
-        for element in elements {
-            result += formatElement(element)
-        }
-        
-        return result
-    }
-    
-    private func communication_with_chatgpt(_ query: String) async throws {
-        // Notify client that LLM loop is starting
-        os_log("Notifying callback client: LLM loop started. Callback client exists: %@", log: log, type: .debug, callbackClient != nil ? "YES" : "NO")
-        if let client = callbackClient {
-            os_log("Calling onLLMLoopStarted on callback client", log: log, type: .debug)
-            client.onLLMLoopStarted()
-        } else {
-            os_log("ERROR: Callback client is nil when trying to notify LLM loop started", log: log, type: .error)
-        }
-        
-        // I have 3 different llm agents.
-        // 1. defines the initial state:
-        // 2. updates the state etc based on tool results. (no tools given to it)
-        // 3. use the mcp tools to perform various activities
-        if openAIClient == nil {
-            os_log("Initializing OpenAI client with API key", log: log, type: .debug)
-            self.openAIClient = OpenAI(apiToken: Secrets.open_ai_key)
-        }
-        guard let openAIClient = openAIClient else {
-            os_log("OpenAI client is not initialized", log: log, type: .error)
-            throw NudgeError.openAIClientNotInitialized
-        }
-        
-        var retryCount = 0
-        
-        // User message
-        guard let user_query = ChatQuery.ChatCompletionMessageParam(role: .user, content: query) else {
-            throw NudgeError.cannotCreateMessageForOpenAI
-        }
-        
-        // agent definitions
-        let init_agent_sys_msg: String = """
-        You are a smart llm agent that is part of a navigation tool. Your job is to define a short goal from the user query. 
-        You will be given a user query, based on that you need to return a goal. For example:
-        "user": "I want to open the browser"
-        "you": "open_safari"
-        
-        "user": "I want you to open the tool that you use to inspect accessibility elements"
-        "you": "open_accessibility_inspector"
-        
-        "user": "I want to block my calendar"
-        "you": "add_new_event_in_calendar"
-        """
-        
-        let update_agent_sys_msg: String = """
-        You are a smart llm agent which is part of a navigation tool. You are responsible for summarizing the knowledge of what the agent has done,
-        based on current state and previous action. You will get an input explaining the goal, last action and current knowledge,
-        you are supposed to return the updated knowledge. Example:
-        "input": "goal: add_new_event_in_calendar, last_action: search for new event button, last_server_respons: found the button, knowledge: calendar is open, need to find button to create event"
-        "output": "calendar is open, we have found the button for new event"
-        """
-        
-        let mcp_agent_sys_msg: String = """
-        You are a smart NAVIGATION ASSISTANT. you will be give a goal, last_action, last_server_response and knowledge along with appropriate tools.
-        Based on that you need to formulate the next step to reach the goal. For example:
-        "input": "goal: add_a_new_event_in_calendar, last_action: open_application, last_server_respons: calendar is now open, knowledge: "
-        
-        Your will analyse the input and based on that decide the calls to be made. If no tool call is required you send a success message to the user
-        """
-        
-        guard let init_agent_sys_query: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(role: .system, content: init_agent_sys_msg) else {
-            throw NudgeError.cannotCreateMessageForOpenAI
-        }
-        let init_agent_query: ChatQuery = ChatQuery(
-            messages: [init_agent_sys_query, user_query],
-            model: "gpt-4o-2024-08-06"
-        )
-        
-        guard let update_agent_sys_query: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(role: .system, content: update_agent_sys_msg) else {
-            throw NudgeError.cannotCreateMessageForOpenAI
-        }
-        
-        guard let mcp_agent_sys_query: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(role: .system, content: mcp_agent_sys_msg) else {
-            throw NudgeError.cannotCreateMessageForOpenAI
-        }
-
-        
-        struct chatgptstate: Codable {
-            var goal: String
-            var last_action: String = ""
-            var last_server_response: String = ""
-            var error_count: Int = 0
-            var knowledge: String = ""
-        }
-        
-        
-        // ALL ABOUT TOOLS
-        var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
-        for clientInfo in self.serverDict.values { chat_gpt_tools.append(contentsOf: clientInfo.chat_gpt_tools) }
-        os_log("Got %d tools in chat gpt", log: log, type: .debug)
-
-        // DECIDE THE INITIAL STATE. USING A SEPERATE LLM QUERY TO FILL UP THE STATE
-        let init_agent_response_chatgpt = try await openAIClient.chats(query: init_agent_query)
-        guard let init_goal = init_agent_response_chatgpt.choices.first?.message.content else { throw NudgeError.noGoalFound}
-        var openAI_state: chatgptstate = chatgptstate(goal: init_goal)
-        
-        // Notify client about the initial goal
-        os_log("Notifying callback client: Goal identified. Callback client exists: %@", log: log, type: .debug, callbackClient != nil ? "YES" : "NO")
-        if let client = callbackClient {
-            os_log("Calling onLLMMessage for goal on callback client", log: log, type: .debug)
-            client.onLLMMessage("Goal identified: \(init_goal)")
-        } else {
-            os_log("ERROR: Callback client is nil when trying to notify goal", log: log, type: .error)
-        }
-
-        // The actual loop. We keep running it for 15 retries or when the goal is reached
-        while(retryCount < 6) {
-            retryCount += 1
-            
-            // AGENTIC TASKS ARE PERFORMED FROM HERE
-            
-            // UPDATE THE GPT WITH THE CURRENT STATE OF THE TASK
-            guard let update_user_message = ChatQuery.ChatCompletionMessageParam(
-                role: .user,
-                content: "goal: \(openAI_state.goal), last_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), current_knowledge: \(openAI_state.knowledge)") else {
-                throw NudgeError.cannotCreateMessageForOpenAI
-            }
-            
-            let update_agent_query: ChatQuery = ChatQuery(
-                messages: [update_agent_sys_query, update_user_message],
-                model: "gpt-4o-2024-08-06"
-            )
-            let update_agent_response_chatgpt = try await openAIClient.chats(query: update_agent_query)
-            openAI_state.knowledge = update_agent_response_chatgpt.choices.first?.message.content ?? ""
-            
-            // Notify client about knowledge update
-            callbackClient?.onLLMMessage("Knowledge updated: \(openAI_state.knowledge)")
-
-            // REQUEST THE LLM WITH THE GIVEN TOOLS TO PERFORM THE TASK
-            guard let mcp_user_message = ChatQuery.ChatCompletionMessageParam(
-                role: .user,
-                content: "goal: \(openAI_state.goal), last_action: \(openAI_state.last_action), last_server_response: \(openAI_state.last_server_response), knowledge: \(openAI_state.knowledge). What will you do next?") else {
-                throw NudgeError.cannotCreateMessageForOpenAI
-            }
-            let mcp_agent_query: ChatQuery = ChatQuery(
-                messages: [mcp_agent_sys_query, mcp_user_message],
-                model: "gpt-4o-2024-08-06",
-                tools: chat_gpt_tools)
-            let mcp_agent_response_chatgpt = try await openAIClient.chats(query: mcp_agent_query)
-            os_log("------------------------------------------------------", log: log, type: .debug)
-            os_log("Received response from OpenAI: %@", log: log, type: .debug, mcp_agent_response_chatgpt.choices.first?.message.content ?? "No content")
-            os_log("The tool calls list from OpenAI: %@", log: log, type: .debug, mcp_agent_response_chatgpt.choices.first?.message.toolCalls?.description ?? "No content")
-            os_log("------------------------------------------------------", log: log, type: .debug)
-            
-            // Notify client about LLM response
-            if let content = mcp_agent_response_chatgpt.choices.first?.message.content {
-                callbackClient?.onLLMMessage("LLM Response: \(content)")
-            }
-
-            var tool_call_list: [ChatQuery.ChatCompletionMessageParam.AssistantMessageParam.ToolCallParam] = []
-            guard let mcp_message_from_openAI = mcp_agent_response_chatgpt.choices.first?.message else {
-                throw NudgeError.noMessageFromOpenAI
-            }
-            guard let openAIToolCalls = mcp_message_from_openAI.toolCalls else {
-                os_log("No tool calls from open AI", log: log, type: .debug)
-                callbackClient?.onLLMLoopFinished()
-                return
-            }
-            tool_call_list.append(contentsOf: openAIToolCalls)
-            while (!tool_call_list.isEmpty) {
-                os_log("---------------------------------------", log: log_llm, type: .debug)
-                os_log("Iteration no: %d, no of tools: %d", log: log_llm, type: .debug, retryCount, tool_call_list.count)
-                
-                os_log("Knowledge: %{public}@", log: log_llm, type: .debug, openAI_state.knowledge)
-                
-                os_log("Processing tool calls from OpenAI response", log: log, type: .debug)
-                let curr_tool = tool_call_list.first!
-                tool_call_list.remove(at: 0)
-                let functionName = curr_tool.function.name
-                os_log("Tool call: %@", log: log, type: .debug, functionName)
-                guard let argumentsData = curr_tool.function.arguments.data(using: .utf8) else {
-                    os_log("Failed to convert arguments to Data", log: log, type: .error)
-                    throw NudgeError.cannotParseToolArguments
-                }
-                let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
-                os_log("Decoded arguments: %@", log: log, type: .debug, String(describing: arguemnt_dict))
-                
-                // Notify client about tool call
-                callbackClient?.onToolCalled(toolName: functionName, arguments: curr_tool.function.arguments)
-                
-                var server_response = ""
-                
-                do {
-                    switch functionName {
-                    case "get_ui_elements":
-                        os_log("Calling get_ui_elements", log: log, type: .debug)
-                        let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.getUIElements(arguments: arguemnt_dict)
-                        server_response = formatUIElementsToString(ui_element_tree)
-                        break
-                    case "click_element_by_id":
-                        os_log("Calling click_element_by_id", log: log, type: .debug)
-                        try await NudgeLibrary.shared.clickElement(arguments: arguemnt_dict)
-                        server_response = "Successfully clicked the UI element"
-                        break
-                    case "update_ui_element_tree":
-                        os_log("calling update ui_element_tree", log: log, type: .debug)
-                        let ui_element_tree = try await NudgeLibrary.shared.updateUIElementTree(arguments: arguemnt_dict)
-                        server_response = formatUIElementsToString(ui_element_tree)
-                        break
-                    default:
-                        break
-                    }
-
-                } catch {
-                    server_response = "Server responded with the following error: \(error.localizedDescription)"
-                }
-                
-                // Update the state with the server response for the next iteration
-                openAI_state.last_action = curr_tool.function.name
-                openAI_state.last_server_response = server_response
-                
-                // NOT DOING ANYTHING WITH THE ONLINE SERVER YET
-            }
-
-
-            // UPDATE IF GOAL REACHED
-        }
-        
-        // Notify client that LLM loop has finished
-        callbackClient?.onLLMLoopFinished()
     }
     
     private func getTools(_ server: MCPServer) async throws {
