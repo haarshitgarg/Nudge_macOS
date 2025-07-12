@@ -55,6 +55,9 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 self.callbackClient?.onLLMLoopStarted()
                 
                 // Set the user query in the agent state before invoking
+                let tools = self.getTools()
+                os_log("Updating agent with %d tools", log: log, type: .debug, tools.count)
+                self.nudgeAgent.updateTools(tools)
                 self.nudgeAgent.state.data["user_query"] = message
                 os_log("Set user query in agent state: %@", log: log, type: .debug, message)
                 
@@ -100,52 +103,59 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     }
     
     // MARK: - Start the MCP client settings from here
-    public func setupMCPClient() {
+    public func setupMCPClient() async {
         os_log("Setting up MCP Client...", log: log, type: .debug)
         // Setup the All necessary navigation
         // This is just a dummy server will not be required
         let navServer = MCPServer(name: "NavServer")
         var navClientInfo = ClientInfo()
-        Task {
-            navClientInfo.mcp_tools = await NudgeLibrary.shared.getNavTools()
-            do { try getNavTools(client: &navClientInfo)}
-            catch {os_log("Error in navclient", log: log, type: .error)}
-            serverDict[navServer] = navClientInfo
-            os_log("Tools received from nudge %{public}d", log: log, type: .debug, navClientInfo.mcp_tools.count)
-        }
         
-        
+        navClientInfo.mcp_tools = await NudgeLibrary.shared.getNavTools()
+        do { try getNavTools(client: &navClientInfo)}
+        catch {os_log("Error in navclient", log: log, type: .error)}
+        serverDict[navServer] = navClientInfo
+        os_log("Tools received from nudge %{public}d", log: log, type: .debug, navClientInfo.mcp_tools.count)
         
         // Load server configuration
         loadServerConfig()
+        
+        // Process all servers sequentially to ensure proper loading
         for server in serverDict.keys {
-            Task {
-                do {
-                    os_log("Trying to connect to server: %@", log: log, type: .info, server.name)
-                    switch server.transport {
-                    case .http:
-                        let transport = HTTPClientTransport(
-                            endpoint: URL(string: server.address ?? "http://localhost:8081")!,
-                            logger: logger
-                        )
-                        try await serverDict[server]?.client?.connect(transport: transport)
-                        try await getTools(server)
-                        break
-                    case .https:
-                        break
-                    case .stdio:
-                        try await setupStdioClient(server)
-                        try await getTools(server)
-                        break
-                    default:
-                        break
-                    }
-                    os_log("Successfully connected to server: %@", log: log, type: .info, server.name)
-                } catch {
-                    os_log("Failed to connect to server %@ with error: %@", log: log, type: .error, server.name, error.localizedDescription)
+            do {
+                os_log("Trying to connect to server: %@", log: log, type: .info, server.name)
+                switch server.transport {
+                case .http:
+                    let transport = HTTPClientTransport(
+                        endpoint: URL(string: server.address ?? "http://localhost:8081")!,
+                        logger: logger
+                    )
+                    try await serverDict[server]?.client?.connect(transport: transport)
+                    try await getTools(server)
+                    break
+                case .https:
+                    break
+                case .stdio:
+                    try await setupStdioClient(server)
+                    try await getTools(server)
+                    break
+                default:
+                    break
                 }
+                os_log("Successfully connected to server: %@", log: log, type: .info, server.name)
+            } catch {
+                os_log("Failed to connect to server %@ with error: %@", log: log, type: .error, server.name, error.localizedDescription)
             }
         }
+        
+        os_log("MCP Client setup completed. Total tools loaded: %d", log: log, type: .info, getTools().count)
+    }
+    
+    private func getTools() -> [ChatQuery.ChatCompletionToolParam] {
+        var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
+        for clientInfo in self.serverDict.values { chat_gpt_tools.append(contentsOf: clientInfo.chat_gpt_tools) }
+        os_log("Got %d tools in chat gpt", log: log, type: .debug, chat_gpt_tools.count)
+        
+        return chat_gpt_tools
     }
     
     private func setupStdioClient(_ server: MCPServer) async throws {

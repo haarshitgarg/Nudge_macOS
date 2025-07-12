@@ -25,7 +25,9 @@ class ServiceDelegate: NSObject, NSXPCListenerDelegate {
         
         // Next, set the object that the connection exports. All messages sent on the connection to this service will be sent to the exported object to handle. The connection retains the exported object.
         let exportedObject = NavigationMCPClient()
-        exportedObject.setupMCPClient()
+        Task {
+            await exportedObject.setupMCPClient()
+        }
         newConnection.exportedObject = exportedObject
         
         // Resuming the connection allows the system to deliver more incoming messages.

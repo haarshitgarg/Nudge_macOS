@@ -22,6 +22,9 @@ struct NudgeAgent {
         "finish": END
     ]
     
+    // Tools
+    var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
+    
     // LLM Information
     var openAIClient: OpenAI
     
@@ -94,9 +97,13 @@ struct NudgeAgent {
         
         let messages = [system_message_to_llm, developer_message_to_llm, user_message_to_llm]
         
+        // Get tools from the current state
+        let availableTools = Action.available_tools ?? []
+        os_log("No of tools available for the agent: %d", log: log, type: .debug, availableTools.count)
         let llm_query = ChatQuery(
             messages: messages,
-            model: "gpt-4o-mini"
+            model: "gpt-4o-mini",
+            tools: availableTools
             )
         
         return try await performOpenAIRequestWithRetry(query: llm_query, maxRetries: 3)
@@ -114,9 +121,12 @@ struct NudgeAgent {
         // Based on the agent outcome decide if we need to go to the tool_call or end it
         os_log("Edgne conditon is checked", log: log, type: .debug)
         os_log("Action received: %@", log:log, type: .debug, Action.agent_outcome?.choices.first?.message.content ?? "No message")
+        os_log("Action tool call if any: %@", log:log, type: .debug, Action.agent_outcome?.choices.first?.message.toolCalls?.description ?? "No tool call")
 
         return "finish"
     }
+    
+    // MARK: Private functions
     
     private mutating func initialiseAgentState() throws {
         os_log("Initializing agent state with .md files", log: log, type: .debug)
@@ -148,9 +158,6 @@ struct NudgeAgent {
         os_log("Agent state initialization completed", log: log, type: .debug)
     }
     
-    public func invoke() async throws -> NudgeAgentState? {
-        return try await self.agent?.invoke(inputs: self.state.data)
-    }
     
     private func performOpenAIRequestWithRetry(query: ChatQuery, maxRetries: Int) async throws -> PartialAgentState {
         var retryCount = 0
@@ -272,5 +279,16 @@ struct NudgeAgent {
         
         return result
     }
+    
+    // MARK: Public functions
 
+    public func invoke() async throws -> NudgeAgentState? {
+        return try await self.agent?.invoke(inputs: self.state.data)
+    }
+    
+    public mutating func updateTools(_ tools: [ChatQuery.ChatCompletionToolParam]) {
+        self.chat_gpt_tools = tools
+        self.state.data["available_tools"] = tools
+        os_log("NudgeAgent: Tools updated, now have %d tools", log: log, type: .debug, self.chat_gpt_tools.count)
+    }
 }

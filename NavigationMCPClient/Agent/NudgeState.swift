@@ -54,5 +54,10 @@ struct NudgeAgentState: AgentState {
         value("agent_outcome")
     }
     
+    // Available tools for the agent
+    var available_tools: [ChatQuery.ChatCompletionToolParam]? {
+        value("available_tools")
+    }
+    
 }
 
