@@ -6,7 +6,10 @@
 //
 
 import LangGraph
+import MCP
+import OpenAI
 import OSLog
+import NudgeLibrary
 
 // The nudge agent to do everything required
 struct NudgeAgent {
@@ -18,6 +21,9 @@ struct NudgeAgent {
         "tool_call": "tool_node",
         "finish": END
     ]
+    
+    // LLM Information
+    var openAIClient: OpenAI
     
     var agent: StateGraph<NudgeAgentState>.CompiledGraph?
     
@@ -31,10 +37,14 @@ struct NudgeAgent {
         self.workflow = StateGraph { state in
             return NudgeAgentState(state)
         }
-        
+        // Initialise open AI
+        os_log("Initializing OpenAI client with API key", log: log, type: .debug)
+        self.openAIClient = OpenAI(apiToken: Secrets.open_ai_key)
+
+        // Initialise State
         self.state = NudgeAgentState([:])
         try self.initialiseAgentState()
-        os_log("Initialization Success. Current system instructions: %a", log: log, type: .debug, self.state.system_instructions ?? "NO instructions")
+        os_log("Initialization Success", log: log, type: .debug)
     }
     
     mutating func defineWorkFlow() throws {
@@ -60,7 +70,43 @@ struct NudgeAgent {
         // Update anyother thing that is required
         os_log("contact_llm function called", log: log, type: .debug)
         
-        return Action.data
+        let user_query: String = Action.user_query ?? "Testing 123"
+        let system_instructions: String = Action.system_instructions ?? "NO INSTRUCTIONS"
+        let context = buildContextFromState(Action)
+        
+        guard let system_message_to_llm: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(
+            role: .system, content: system_instructions
+        ) else {
+            throw NudgeError.cannotCreateMessageForOpenAI
+        }
+        
+        guard let developer_message_to_llm: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(
+            role: .developer, content: context
+        ) else {
+            throw NudgeError.cannotCreateMessageForOpenAI
+        }
+        
+        guard let user_message_to_llm: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(
+            role: .user, content: user_query
+        ) else {
+            throw NudgeError.cannotCreateMessageForOpenAI
+        }
+        
+        let messages = [system_message_to_llm, developer_message_to_llm, user_message_to_llm]
+        
+        let llm_query = ChatQuery(
+            messages: messages,
+            model: "gpt-4.1-mini"
+            )
+        
+        do {
+            let response = try await self.openAIClient.chats(query: llm_query)
+            return ["agent_outcome": response]
+        } catch {
+            os_log("Failed with error message: %@", log: log, type: .error, error.localizedDescription)
+            throw NudgeError.failedToSendMessageToOpenAI(descripiton: error.localizedDescription)
+        }
+        
     }
     
     func tool_call(Action: NudgeAgentState) async throws -> PartialAgentState {
@@ -73,7 +119,8 @@ struct NudgeAgent {
     func edgeConditionForLLM(Action: NudgeAgentState) async throws -> String {
         // Based on the agent outcome decide if we need to go to the tool_call or end it
         os_log("Edgne conditon is checked", log: log, type: .debug)
-        
+        os_log("Action received: %@", log:log, type: .debug, Action.agent_outcome?.choices.first?.message.content ?? "No message")
+
         return "finish"
     }
     
@@ -111,4 +158,68 @@ struct NudgeAgent {
         return try await self.agent?.invoke(inputs: self.state.data)
     }
     
+    
+    private func buildContextFromState(_ state: NudgeAgentState) -> String {
+        var contextComponents: [String] = []
+        
+        // Add rules if available
+        if let rules = state.rules, !rules.isEmpty {
+            contextComponents.append("## Navigation Rules\n\(rules)")
+        }
+        
+        // Add knowledge if available
+        if let knowledge = state.knowledge, !knowledge.isEmpty {
+            let knowledgeString = knowledge.joined(separator: "\n- ")
+            contextComponents.append("## System Knowledge\n- \(knowledgeString)")
+        }
+        
+        // Add current application UI state if available
+        if let currentAppState = state.current_application_state, !currentAppState.isEmpty {
+            let uiElements = Array(currentAppState.values)
+            let uiStateString = formatUIElementsToString(uiElements)
+            contextComponents.append("## Current UI State\n\(uiStateString)")
+        }
+        
+        // Add todo list if available
+        if let todoList = state.todo_list, !todoList.isEmpty {
+            let todoString = todoList.enumerated().map { index, todo in
+                "\(index + 1). \(todo)"
+            }.joined(separator: "\n")
+            contextComponents.append("## Pending Tasks\n\(todoString)")
+        }
+        
+        // Add previous agent outcome if available
+        if let agentOutcome = state.agent_outcome {
+            contextComponents.append("## Previous Action\nLast action taken: \(agentOutcome)")
+        }
+        
+        // Join all components with double newlines for clear separation
+        return contextComponents.isEmpty ? "No additional context available." : contextComponents.joined(separator: "\n\n")
+    }
+    
+    private func formatUIElementsToString(_ elements: [UIElementInfo]) -> String {
+        var result = "UI Elements Found:\n"
+        
+        func formatElement(_ element: UIElementInfo, depth: Int = 0) -> String {
+            let indent = String(repeating: "  ", count: depth)
+            var elementString = "\(indent)- ID: \(element.element_id)\n"
+            elementString += "\(indent)  Description: \(element.description)\n"
+            
+            if !element.children.isEmpty {
+                elementString += "\(indent)  Children (\(element.children.count)):\n"
+                for child in element.children {
+                    elementString += formatElement(child, depth: depth + 2)
+                }
+            }
+            
+            return elementString
+        }
+        
+        for element in elements {
+            result += formatElement(element)
+        }
+        
+        return result
+    }
+
 }

@@ -16,8 +16,9 @@ public enum NudgeError: Error, Sendable {
     case cannotCreateMessageForOpenAI
     case noGoalFound
     case agentNotInitialized(description: String)
+    case failedToSendMessageToOpenAI(descripiton: String)
     
-    public var getDescription: String {
+    public var localizedDescription: String {
         switch self {
         case .connectionFailed:
             return "Failed to connect to the Nudge service."
@@ -37,6 +38,8 @@ public enum NudgeError: Error, Sendable {
             return "LLM did not return any goal"
         case .agentNotInitialized(let description):
             return "Agent was not initialized properly because: \(description)"
+        case .failedToSendMessageToOpenAI(let description):
+            return "Failed to send message to OpenAI because: \(description)"
             
         }
     }

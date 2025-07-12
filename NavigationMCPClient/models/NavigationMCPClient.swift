@@ -53,7 +53,11 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             do {
                 //try await communication_with_chatgpt(message)
                 self.callbackClient?.onLLMLoopStarted()
-                sleep(5)
+                
+                // Set the user query in the agent state before invoking
+                self.nudgeAgent.state.data["user_query"] = message
+                os_log("Set user query in agent state: %@", log: log, type: .debug, message)
+                
                 let final_state = try await self.nudgeAgent.invoke()
                 self.callbackClient?.onLLMLoopFinished()
                 os_log("Reached final state", log: log, type: .debug)

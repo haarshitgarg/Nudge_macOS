@@ -6,6 +6,8 @@
 //
 
 import LangGraph
+import OpenAI
+import NudgeLibrary
 
 // More information is good as I can pick and chose what goes into the LLM, so any useful information about the current state is good
 struct NudgeAgentState: AgentState {
@@ -43,12 +45,12 @@ struct NudgeAgentState: AgentState {
     }
     
     // To capture the current ui state of application agent is interacting with
-    var current_application_state: [String: String]? {
+    var current_application_state: [String: UIElementInfo]? {
         value("current_application_state")
     }
     
     // Whatever the agent has blurted out.
-    var agent_outcome: AgentOutcome? {
+    var agent_outcome: ChatResult? {
         value("agent_outcome")
     }
     
