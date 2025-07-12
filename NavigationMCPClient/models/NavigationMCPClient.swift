@@ -39,11 +39,8 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         jsonEncoder.outputFormatting = [.prettyPrinted]
         os_log("Initializing the nudge agent", log: log, type: .debug)
         
-        do {
-            try self.nudgeAgent.defineWorkFlow()
-        } catch {
-            os_log("Nudge Agent workflow returned with error: %{public}@", log: log, type: .debug, error.localizedDescription)
-        }
+        try! self.nudgeAgent.defineWorkFlow()
+        os_log("✅ Workflow compilation completed successfully", log: log, type: .info)
         
     }
     
@@ -53,7 +50,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             do {
                 //try await communication_with_chatgpt(message)
                 self.callbackClient?.onLLMLoopStarted()
-                
+                sleep(1)
                 // Set the user query in the agent state before invoking
                 let tools = self.getTools()
                 os_log("Updating agent with %d tools", log: log, type: .debug, tools.count)
@@ -63,7 +60,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 
                 let final_state = try await self.nudgeAgent.invoke()
                 self.callbackClient?.onLLMLoopFinished()
-                os_log("Reached final state", log: log, type: .debug)
+                os_log("Reached final state %@", log: log, type: .debug, final_state.debugDescription)
             } catch {
                 os_log("Error while sending user message: %@", log: log, type: .error, error.localizedDescription)
                 callbackClient?.onError("Error processing message: \(error.localizedDescription)")

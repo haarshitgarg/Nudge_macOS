@@ -18,6 +18,9 @@ public enum NudgeError: Error, Sendable {
     case agentNotInitialized(description: String)
     case failedToSendMessageToOpenAI(descripiton: String)
     
+    case agentStateVarMissing(description: String)
+    case toolcalllistempty
+    
     public var localizedDescription: String {
         switch self {
         case .connectionFailed:
@@ -40,7 +43,10 @@ public enum NudgeError: Error, Sendable {
             return "Agent was not initialized properly because: \(description)"
         case .failedToSendMessageToOpenAI(let description):
             return "Failed to send message to OpenAI because: \(description)"
-            
+        case .agentStateVarMissing(let description):
+            return "Agent state variable is missing: \(description)"
+        case .toolcalllistempty:
+            return "Tool call list is empty"
         }
     }
 }

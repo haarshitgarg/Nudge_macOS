@@ -45,7 +45,7 @@ struct NudgeAgentState: AgentState {
     }
     
     // To capture the current ui state of application agent is interacting with
-    var current_application_state: [String: UIElementInfo]? {
+    var current_application_state: String? {
         value("current_application_state")
     }
     
@@ -57,6 +57,18 @@ struct NudgeAgentState: AgentState {
     // Available tools for the agent
     var available_tools: [ChatQuery.ChatCompletionToolParam]? {
         value("available_tools")
+    }
+    
+    var no_of_iteration: Int? {
+        value("no_of_iteration")
+    }
+    
+    var no_of_errors: Int? {
+        value("no_of_errors")
+    }
+    
+    var tool_call_result: String? {
+        value("tool_call_result")
     }
     
 }
