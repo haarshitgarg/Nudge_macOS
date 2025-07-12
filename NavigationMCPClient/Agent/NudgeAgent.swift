@@ -96,16 +96,10 @@ struct NudgeAgent {
         
         let llm_query = ChatQuery(
             messages: messages,
-            model: "gpt-4.1-mini"
+            model: "gpt-4o-mini"
             )
         
-        do {
-            let response = try await self.openAIClient.chats(query: llm_query)
-            return ["agent_outcome": response]
-        } catch {
-            os_log("Failed with error message: %@", log: log, type: .error, error.localizedDescription)
-            throw NudgeError.failedToSendMessageToOpenAI(descripiton: error.localizedDescription)
-        }
+        return try await performOpenAIRequestWithRetry(query: llm_query, maxRetries: 3)
         
     }
     
@@ -158,6 +152,63 @@ struct NudgeAgent {
         return try await self.agent?.invoke(inputs: self.state.data)
     }
     
+    private func performOpenAIRequestWithRetry(query: ChatQuery, maxRetries: Int) async throws -> PartialAgentState {
+        var retryCount = 0
+        
+        while retryCount <= maxRetries {
+            do {
+                os_log("Attempting OpenAI request (attempt %d/%d)", log: log, type: .debug, retryCount + 1, maxRetries + 1)
+                
+                let response = try await self.openAIClient.chats(query: query)
+                os_log("OpenAI request successful", log: log, type: .info)
+                
+                return ["agent_outcome": response]
+                
+            } catch {
+                retryCount += 1
+                
+                // Enhanced error logging with context
+                var errorContext = "Model: \(query.model), Messages: \(query.messages.count)"
+                
+                // Analyze error type for better description
+                var detailedError = error.localizedDescription
+                if let nsError = error as NSError? {
+                    errorContext += ", Domain: \(nsError.domain), Code: \(nsError.code)"
+                    
+                    // Add specific context for common errors
+                    if nsError.domain == "NSCocoaErrorDomain" && nsError.code == 4865 {
+                        detailedError = "JSON decoding error - likely system_fingerprint field issue. \(error.localizedDescription)"
+                    } else if nsError.code == 401 {
+                        detailedError = "Authentication failed - check API key. \(error.localizedDescription)"
+                    } else if nsError.code == 429 {
+                        detailedError = "Rate limit exceeded. \(error.localizedDescription)"
+                    } else if nsError.code >= 500 {
+                        detailedError = "OpenAI server error (HTTP \(nsError.code)). \(error.localizedDescription)"
+                    }
+                }
+                
+                os_log("OpenAI request failed (attempt %d/%d): %@ [%@]", log: log, type: .error, retryCount, maxRetries + 1, detailedError, errorContext)
+                
+                // Simple retry for rate limits and server errors
+                if retryCount <= maxRetries {
+                    let errorMessage = error.localizedDescription.lowercased()
+                    if errorMessage.contains("rate limit") || errorMessage.contains("429") || 
+                       errorMessage.contains("server error") || errorMessage.contains("500") ||
+                       errorMessage.contains("502") || errorMessage.contains("503") {
+                        let delay = retryCount * 2 // 2, 4, 6 seconds
+                        os_log("Retrying in %d seconds", log: log, type: .info, delay)
+                        try await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
+                        continue
+                    }
+                }
+                
+                // If not retryable or max retries exceeded, throw descriptive error
+                throw NudgeError.failedToSendMessageToOpenAI(descripiton: "\(detailedError) [\(errorContext)]")
+            }
+        }
+        
+        throw NudgeError.failedToSendMessageToOpenAI(descripiton: "Max retries exceeded. Model: \(query.model), Messages: \(query.messages.count)")
+    }
     
     private func buildContextFromState(_ state: NudgeAgentState) -> String {
         var contextComponents: [String] = []
