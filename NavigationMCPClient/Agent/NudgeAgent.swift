@@ -21,7 +21,7 @@ struct NudgeAgent {
     
     var agent: StateGraph<NudgeAgentState>.CompiledGraph?
     
-    init() {
+    init() throws {
         // TODO: Decide how the Nudge agent is initialised.
         // Need to decinde how initial state for the agent will be decided, where it will be decided
         // Been thinking about a .md file for how the agent should behave or something like this
@@ -33,7 +33,8 @@ struct NudgeAgent {
         }
         
         self.state = NudgeAgentState([:])
-        os_log("Initialization Success", log: log, type: .debug)
+        try self.initialiseAgentState()
+        os_log("Initialization Success. Current system instructions: %a", log: log, type: .debug, self.state.system_instructions ?? "NO instructions")
     }
     
     mutating func defineWorkFlow() throws {
@@ -74,6 +75,40 @@ struct NudgeAgent {
         os_log("Edgne conditon is checked", log: log, type: .debug)
         
         return "finish"
+    }
+    
+    private mutating func initialiseAgentState() throws {
+        os_log("Initializing agent state with .md files", log: log, type: .debug)
+        
+        // Load system instructions from SystemInstructions.md
+        if let systemInstructionsPath = Bundle.main.path(forResource: "SystemInstructions", ofType: "md") {
+            let systemInstructions = try String(contentsOfFile: systemInstructionsPath, encoding: .utf8)
+            self.state.data["system_instructions"] = systemInstructions
+            os_log("Loaded system instructions successfully", log: log, type: .debug)
+        } else {
+            os_log("SystemInstructions.md not found in bundle", log: log, type: .error)
+            throw NudgeError.agentNotInitialized(description: "SystemInstrcutions.md not found in bundle")
+        }
+        
+        // Load rules from Nudge.md
+        if let rulesPath = Bundle.main.path(forResource: "Nudge", ofType: "md") {
+            let rules = try String(contentsOfFile: rulesPath, encoding: .utf8)
+            self.state.data["rules"] = rules
+            os_log("Loaded rules successfully", log: log, type: .debug)
+        } else {
+            os_log("Nudge.md not found in bundle", log: log, type: .error)
+            throw NudgeError.agentNotInitialized(description: "Nudge.md not found in bundle")
+        }
+        
+        // Initialize other state properties
+        self.state.data["todo_list"] = [String]()
+        self.state.data["knowledge"] = [String]()
+        
+        os_log("Agent state initialization completed", log: log, type: .debug)
+    }
+    
+    public func invoke() async throws -> NudgeAgentState? {
+        return try await self.agent?.invoke(inputs: self.state.data)
     }
     
 }

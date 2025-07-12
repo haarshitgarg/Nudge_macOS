@@ -24,7 +24,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     private var openAIClient: OpenAI? = nil
     private let jsonEncoder: JSONEncoder = JSONEncoder()
     private let jsonDecoder: JSONDecoder = JSONDecoder()
-    private var nudgeAgent: NudgeAgent = NudgeAgent()
+    private var nudgeAgent: NudgeAgent
     
     // Callback client for two-way communication
     // Using strong reference to prevent deallocation during async operations
@@ -32,6 +32,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     // ____________________
     
     override init() {
+        self.nudgeAgent = try! NudgeAgent()
         super.init()
         
         os_log("NavigationMCPClient initialized - instance: %@", log: log, type: .debug, String(describing: self))
@@ -53,7 +54,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 //try await communication_with_chatgpt(message)
                 self.callbackClient?.onLLMLoopStarted()
                 sleep(5)
-                let final_state = try await self.nudgeAgent.agent?.invoke(inputs: [:])
+                let final_state = try await self.nudgeAgent.invoke()
                 self.callbackClient?.onLLMLoopFinished()
                 os_log("Reached final state", log: log, type: .debug)
             } catch {

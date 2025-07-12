@@ -15,6 +15,7 @@ public enum NudgeError: Error, Sendable {
     case noMessageFromOpenAI
     case cannotCreateMessageForOpenAI
     case noGoalFound
+    case agentNotInitialized(description: String)
     
     public var getDescription: String {
         switch self {
@@ -34,6 +35,9 @@ public enum NudgeError: Error, Sendable {
             return "Cannot create a message for OpenAI"
         case .noGoalFound:
             return "LLM did not return any goal"
+        case .agentNotInitialized(let description):
+            return "Agent was not initialized properly because: \(description)"
+            
         }
     }
 }
