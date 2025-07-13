@@ -130,7 +130,7 @@ struct NudgeAgent {
         os_log("No of tools available for the agent: %d", log: log, type: .debug, availableTools.count)
         let llm_query = ChatQuery(
             messages: messages,
-            model: "gpt-4o-mini",
+            model: "gpt-4.1",
             tools: availableTools
             )
         
