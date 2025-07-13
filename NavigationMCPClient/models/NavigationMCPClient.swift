@@ -59,8 +59,18 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 os_log("Set user query in agent state: %@", log: log, type: .debug, message)
                 
                 let final_state = try await self.nudgeAgent.invoke()
+                os_log("Agent invocation completed. Iterations: %{public}d, Errors: %{public}d, Tool calls result: %{public}@", 
+                       log: log, type: .info, 
+                       final_state?.no_of_iteration ?? 0,
+                       final_state?.no_of_errors ?? 0,
+                       final_state?.tool_call_result ?? "None")
+                
+                if let chatHistory = final_state?.chat_history {
+                    os_log("Chat history (%{public}d messages): %{public}@", log: log, type: .info, chatHistory.count, chatHistory.joined(separator: " | "))
+                }
+                
                 self.callbackClient?.onLLMLoopFinished()
-                os_log("Reached final state %@", log: log, type: .debug, final_state.debugDescription)
+                
             } catch {
                 os_log("Error while sending user message: %@", log: log, type: .error, error.localizedDescription)
                 callbackClient?.onError("Error processing message: \(error.localizedDescription)")

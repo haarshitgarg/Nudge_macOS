@@ -20,8 +20,16 @@ struct NudgeAgent {
     var state: NudgeAgentState
     let edge_mappings: [String: String] = [
         "tool_call": "tool_node",
+        "ask_user": "user_node",
+        "llm_call": "llm_node",
         "finish": END
     ]
+    
+    struct agentResponse: Codable {
+        let ask_user: String?
+        let finished: String?
+        let agent_thought: String?
+    }
     
     // Tools
     var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
@@ -40,7 +48,7 @@ struct NudgeAgent {
         
         // TODO: As I don't have any custom channels I have this basic workflow
         os_log("Initializing Nudge Agent", log: log, type: .debug)
-        self.workflow = StateGraph { state in
+        self.workflow = StateGraph(channels: NudgeAgentState.schema) { state in
             return NudgeAgentState(state)
         }
         // Initialise open AI
@@ -57,6 +65,7 @@ struct NudgeAgent {
         os_log("Defining the workflow of the agent", log: log, type: .debug)
         try self.workflow.addNode("llm_node", action: contact_llm)
         try self.workflow.addNode("tool_node", action: tool_call)
+        try self.workflow.addNode("user_node", action: user_input)
         
         // START to the first node
         try self.workflow.addEdge(sourceId: START, targetId: "llm_node")
@@ -66,6 +75,9 @@ struct NudgeAgent {
         
         // Add an edge to go to the llm node right after tool call. No conditions asked
         try self.workflow.addEdge(sourceId: "tool_node", targetId: "llm_node")
+        
+        // Add an edge to go to the llm node right after user call. No conditions asked
+        try self.workflow.addEdge(sourceId: "user_node", targetId: "llm_node")
         
         do {
             self.agent = try self.workflow.compile()
@@ -82,11 +94,18 @@ struct NudgeAgent {
         // Fill the agent outcome
         // Update anyother thing that is required
         os_log("contact_llm function called", log: log, type: .debug)
+        os_log("Current thought process", log: log, type: .debug)
+        if let thought = Action.agent_outcome?.choices.first?.message.content?.data(using: .utf8) {
+            let agent_response = try jsonDecoder.decode(agentResponse.self, from: thought)
+            let agent_thought = agent_response.agent_thought
+            os_log("Agent thought process atm: %@", log: log, type: .debug, agent_thought ?? "Nothing")
+        }
+        
         
         let user_query: String = Action.user_query ?? "Testing 123"
         let system_instructions: String = Action.system_instructions ?? "NO INSTRUCTIONS"
-        let context = buildContextFromState(Action)
-        
+        let context = try buildContextFromState(Action)
+
         guard let system_message_to_llm: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(
             role: .system, content: system_instructions
         ) else {
@@ -112,12 +131,16 @@ struct NudgeAgent {
         os_log("No of tools available for the agent: %d", log: log, type: .debug, availableTools.count)
         let llm_query = ChatQuery(
             messages: messages,
-            model: "gpt-4o-mini",
+            model: "gpt-4.1",
             tools: availableTools
             )
         
-        return try await performOpenAIRequestWithRetry(query: llm_query, maxRetries: 3)
+        guard let iteration: Int = Action.no_of_iteration else {
+            os_log("No of iterations variable doesn't exist", log: log, type: .error)
+            throw NudgeError.agentStateVarMissing(description: "The no_of_iteration doesn't exist")
+        }
         
+        return try await performOpenAIRequestWithRetry(query: llm_query, iteration: iteration, maxRetries: 3)
     }
     
     func tool_call(Action: NudgeAgentState) async throws -> PartialAgentState {
@@ -163,21 +186,33 @@ struct NudgeAgent {
                 let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.getUIElements(arguments: arguemnt_dict)
                 let server_response = formatUIElementsToString(ui_element_tree)
                 return [
+                    "tool_call_result": "Called tool get_ui_elemets. It has returned the updated application state which is stored in current_application_state.",
                     "current_application_state": server_response,
                     "no_of_iteration": iterations + 1
                 ]
             case "click_element_by_id":
                 os_log("Calling click_element_by_id", log: log, type: .debug)
-                try await NudgeLibrary.shared.clickElement(arguments: arguemnt_dict)
-                return [
-                    "current_application_state": "Successfully clicked the element. The state of application might have changed because of that",
-                    "no_of_iteration": iterations + 1
-                ]
+                let result = try await NudgeLibrary.shared.clickElement(arguments: arguemnt_dict)
+                let uiTree = result.uiTree
+                if !result.uiTree.isEmpty {
+                    let server_response = formatUIElementsToString(uiTree)
+                    return [
+                        "tool_call_result": "Called tool click_element_by_id. \(result.message) It has returned the ui tree with the element that you clicked as root.",
+                        "current_application_state": server_response,
+                        "no_of_iteration": iterations + 1
+                    ]
+                } else {
+                    return [
+                        "tool_call_result": "Called tool click_element_by_id. \(result.message)",
+                        "no_of_iteration": iterations + 1
+                    ]
+                }
             case "update_ui_element_tree":
                 os_log("Calling update_ui_element_tree", log: log, type: .debug)
                 let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.updateUIElementTree(arguments: arguemnt_dict)
                 let server_response = formatUIElementsToString(ui_element_tree)
                 return [
+                    "tool_call_result": "Called tool update_ui_element_tree.",
                     "current_application_state": server_response,
                     "no_of_iteration": iterations + 1
                 ]
@@ -198,6 +233,32 @@ struct NudgeAgent {
         }
     }
     
+    func user_input(Action: NudgeAgentState) async throws -> PartialAgentState {
+        // ASK user for its input
+        guard let agent_outcome = Action.agent_outcome else {
+            os_log("The agent_outcome variable not found in the state", log: log, type: .debug)
+            throw NudgeError.agentStateVarMissing(description: "agent_outcome variable is missing")
+        }
+        
+        guard let message = agent_outcome.choices.first?.message.content?.data(using: .utf8) else {
+            os_log("The content from llm is missing")
+            throw NudgeError.agentStateVarMissing(description: "agent_outcome has no content")
+        }
+        
+        let response: agentResponse = try self.jsonDecoder.decode(agentResponse.self, from: message)
+        if response.ask_user != nil {
+            os_log("Asking user for information", log: log, type: .debug)
+        }
+        
+        return [
+            "chat_history":
+                    [
+                        "agent: \(response.ask_user ?? "Agent asked user")",
+                        "user: Do what you think is best. You have complete freedom to choose"
+                    ]
+        ]
+    }
+    
     // Checks if we need to end the loop or call some other tool
     func edgeConditionForLLM(Action: NudgeAgentState) async throws -> String {
         os_log("Edge conditon is checked", log: log, type: .debug)
@@ -210,7 +271,7 @@ struct NudgeAgent {
             return "finish"
         }
         
-        if (errors > 5 || iterations > 10) {
+        if (errors > 5 || iterations > 20) {
             os_log("Reached the limit of iterations and errors, stopping")
             return "finish"
         }
@@ -219,7 +280,27 @@ struct NudgeAgent {
             os_log("Deciding to go to the node tool_call as tools are available", log: log, type: .debug)
             return "tool_call"
         }
-        os_log("Action received: %@", log:log, type: .debug, Action.agent_outcome?.choices.first?.message.content ?? "No message")
+        
+        guard let response = Action.agent_outcome?.choices.first?.message.content?.data(using: .utf8) else {
+            os_log("The agent outcome variable has no content to decide if we need to ask user or finish", log: log, type: .debug)
+            throw NudgeError.agentStateVarMissing(description: "The agent_outcome has no content")
+        }
+        os_log("Response received will decide if we need to ask user or finish")
+        let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: response)
+        if message.ask_user != nil {
+            return "ask_user"
+        }
+        if message.finished != nil {
+            os_log("Finishing because agent says: %@", log: log, type: .debug, message.finished!)
+            return "finish"
+        }
+        
+        if message.agent_thought != nil {
+            os_log("Some how the agent just thought, no tool call nothin. So returning it back to llm call")
+            return "llm_call"
+        }
+        os_log("Why am i here", log: log, type: .debug)
+        os_log("%@", log: log, type: .debug, String(data: response, encoding: .utf8) ?? "NO DATA")
 
         return "finish"
     }
@@ -259,7 +340,7 @@ struct NudgeAgent {
     }
     
     
-    private func performOpenAIRequestWithRetry(query: ChatQuery, maxRetries: Int) async throws -> PartialAgentState {
+    private func performOpenAIRequestWithRetry(query: ChatQuery, iteration: Int, maxRetries: Int) async throws -> PartialAgentState {
         var retryCount = 0
         
         while retryCount <= maxRetries {
@@ -269,7 +350,10 @@ struct NudgeAgent {
                 let response = try await self.openAIClient.chats(query: query)
                 os_log("OpenAI request successful", log: log, type: .info)
                 
-                return ["agent_outcome": response]
+                return [
+                    "no_of_iteration": iteration + 1,
+                    "agent_outcome": response
+                ]
                 
             } catch {
                 retryCount += 1
@@ -317,7 +401,7 @@ struct NudgeAgent {
         throw NudgeError.failedToSendMessageToOpenAI(descripiton: "Max retries exceeded. Model: \(query.model), Messages: \(query.messages.count)")
     }
     
-    private func buildContextFromState(_ state: NudgeAgentState) -> String {
+    private func buildContextFromState(_ state: NudgeAgentState) throws -> String {
         var contextComponents: [String] = []
         
         // Add rules if available
@@ -331,9 +415,14 @@ struct NudgeAgent {
             contextComponents.append("## System Knowledge\n- \(knowledgeString)")
         }
         
+        // Add user query
+        if let user_query = state.user_query {
+            contextComponents.append("## user_query\n\(user_query)")
+        }
+        
         // Add current application UI state if available
         if let currentAppState = state.current_application_state {
-            contextComponents.append("## Current UI State\n\(currentAppState)")
+            contextComponents.append("## current_application_state\n\(currentAppState)")
         }
         
         // Add todo list if available
@@ -345,13 +434,22 @@ struct NudgeAgent {
         }
         
         // Add previous agent outcome if available
-        if let agentOutcome = state.agent_outcome {
-            contextComponents.append("## Previous Action\nLast action taken: \(agentOutcome)")
+        if let message = state.agent_outcome?.choices.first?.message.content?.data(using: .utf8) {
+            let agent_message = try self.jsonDecoder.decode(agentResponse.self, from: message)
+            if let thought = agent_message.agent_thought {
+                contextComponents.append("## agent_thought\n\(thought)")
+            }
         }
         
         // Add tool call result to the context
         if let tool_call_result = state.tool_call_result {
-            contextComponents.append("## Tool call result\n\(tool_call_result)")
+            contextComponents.append("## tool_call_result\n\(tool_call_result)")
+        }
+        
+        // Add chat history to the context
+        if let chat_history = state.chat_history {
+            contextComponents.append("## chat_history\n")
+            contextComponents.append(contentsOf: chat_history)
         }
         
         // Join all components with double newlines for clear separation
@@ -387,7 +485,7 @@ struct NudgeAgent {
 
     public func invoke() async throws -> NudgeAgentState? {
         os_log("Running the Nudge Agent...", log: log, type: .debug)
-        os_log("Current Context: %@", log: log, type: .debug, self.buildContextFromState(self.state))
+        os_log("Current Context: %@", log: log, type: .debug, try self.buildContextFromState(self.state))
         return try await self.agent?.invoke(inputs: self.state.data, verbose: true)
     }
     
