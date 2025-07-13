@@ -14,6 +14,12 @@ struct NudgeAgentState: AgentState {
     
     var data: [String : Any]
     
+    static var schema: Channels = {
+        [
+            "chat_history": AppenderChannel<String>()
+        ]
+    }()
+    
     init(_ initState: [String : Any]) {
         self.data = initState
     }
@@ -69,6 +75,10 @@ struct NudgeAgentState: AgentState {
     
     var tool_call_result: String? {
         value("tool_call_result")
+    }
+    
+    var chat_history: [String]? {
+        value("chat_history")
     }
     
 }

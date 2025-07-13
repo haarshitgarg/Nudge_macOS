@@ -20,8 +20,15 @@ struct NudgeAgent {
     var state: NudgeAgentState
     let edge_mappings: [String: String] = [
         "tool_call": "tool_node",
+        "ask_user": "user_node",
         "finish": END
     ]
+    
+    struct agentResponse: Codable {
+        let ask_user: String?
+        let finish: String?
+        let agent_thought: String?
+    }
     
     // Tools
     var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
@@ -40,7 +47,7 @@ struct NudgeAgent {
         
         // TODO: As I don't have any custom channels I have this basic workflow
         os_log("Initializing Nudge Agent", log: log, type: .debug)
-        self.workflow = StateGraph { state in
+        self.workflow = StateGraph(channels: NudgeAgentState.schema) { state in
             return NudgeAgentState(state)
         }
         // Initialise open AI
@@ -57,6 +64,7 @@ struct NudgeAgent {
         os_log("Defining the workflow of the agent", log: log, type: .debug)
         try self.workflow.addNode("llm_node", action: contact_llm)
         try self.workflow.addNode("tool_node", action: tool_call)
+        try self.workflow.addNode("user_node", action: user_input)
         
         // START to the first node
         try self.workflow.addEdge(sourceId: START, targetId: "llm_node")
@@ -66,6 +74,9 @@ struct NudgeAgent {
         
         // Add an edge to go to the llm node right after tool call. No conditions asked
         try self.workflow.addEdge(sourceId: "tool_node", targetId: "llm_node")
+        
+        // Add an edge to go to the llm node right after user call. No conditions asked
+        try self.workflow.addEdge(sourceId: "user_node", targetId: "llm_node")
         
         do {
             self.agent = try self.workflow.compile()
@@ -85,8 +96,12 @@ struct NudgeAgent {
         
         let user_query: String = Action.user_query ?? "Testing 123"
         let system_instructions: String = Action.system_instructions ?? "NO INSTRUCTIONS"
-        let context = buildContextFromState(Action)
-        
+        let context = try buildContextFromState(Action)
+        os_log("-------------------------------", log: log, type: .debug)
+        os_log("CONTEXT", log: log, type: .debug)
+        os_log("%@", log: log, type: .debug, context)
+        os_log("-------------------------------", log: log, type: .debug)
+
         guard let system_message_to_llm: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(
             role: .system, content: system_instructions
         ) else {
@@ -198,6 +213,32 @@ struct NudgeAgent {
         }
     }
     
+    func user_input(Action: NudgeAgentState) async throws -> PartialAgentState {
+        // ASK user for its input
+        guard let agent_outcome = Action.agent_outcome else {
+            os_log("The agent_outcome variable not found in the state", log: log, type: .debug)
+            throw NudgeError.agentStateVarMissing(description: "agent_outcome variable is missing")
+        }
+        
+        guard let message = agent_outcome.choices.first?.message.content?.data(using: .utf8) else {
+            os_log("The content from llm is missing")
+            throw NudgeError.agentStateVarMissing(description: "agent_outcome has no content")
+        }
+        
+        let response: agentResponse = try self.jsonDecoder.decode(agentResponse.self, from: message)
+        if response.ask_user != nil {
+            os_log("Asking user for information", log: log, type: .debug)
+        }
+        
+        return [
+            "chat_history":
+                    [
+                        "agent: \(response.ask_user ?? "Agent asked user")",
+                        "user: please proceed"
+                    ]
+        ]
+    }
+    
     // Checks if we need to end the loop or call some other tool
     func edgeConditionForLLM(Action: NudgeAgentState) async throws -> String {
         os_log("Edge conditon is checked", log: log, type: .debug)
@@ -219,8 +260,20 @@ struct NudgeAgent {
             os_log("Deciding to go to the node tool_call as tools are available", log: log, type: .debug)
             return "tool_call"
         }
-        os_log("Action received: %@", log:log, type: .debug, Action.agent_outcome?.choices.first?.message.content ?? "No message")
-
+        
+        guard let response = Action.agent_outcome?.choices.first?.message.content?.data(using: .utf8) else {
+            os_log("The agent outcome variable has no content to decide if we need to ask user or finish", log: log, type: .debug)
+            throw NudgeError.agentStateVarMissing(description: "The agent_outcome has no content")
+        }
+        os_log("Response received will decide if we need to ask user or finish")
+        let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: response)
+        if message.ask_user != nil {
+            return "ask_user"
+        }
+        if message.finish != nil {
+            return "finish"
+        }
+        
         return "finish"
     }
     
@@ -317,7 +370,7 @@ struct NudgeAgent {
         throw NudgeError.failedToSendMessageToOpenAI(descripiton: "Max retries exceeded. Model: \(query.model), Messages: \(query.messages.count)")
     }
     
-    private func buildContextFromState(_ state: NudgeAgentState) -> String {
+    private func buildContextFromState(_ state: NudgeAgentState) throws -> String {
         var contextComponents: [String] = []
         
         // Add rules if available
@@ -345,8 +398,11 @@ struct NudgeAgent {
         }
         
         // Add previous agent outcome if available
-        if let agentOutcome = state.agent_outcome {
-            contextComponents.append("## Previous Action\nLast action taken: \(agentOutcome)")
+        if let message = state.agent_outcome?.choices.first?.message.content?.data(using: .utf8) {
+            let agent_message = try self.jsonDecoder.decode(agentResponse.self, from: message)
+            if let thought = agent_message.agent_thought {
+                contextComponents.append("## Thought process of the agent agent_thought: \(thought)")
+            }
         }
         
         // Add tool call result to the context
@@ -387,7 +443,7 @@ struct NudgeAgent {
 
     public func invoke() async throws -> NudgeAgentState? {
         os_log("Running the Nudge Agent...", log: log, type: .debug)
-        os_log("Current Context: %@", log: log, type: .debug, self.buildContextFromState(self.state))
+        os_log("Current Context: %@", log: log, type: .debug, try self.buildContextFromState(self.state))
         return try await self.agent?.invoke(inputs: self.state.data, verbose: true)
     }
     
