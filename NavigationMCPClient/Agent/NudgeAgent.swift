@@ -21,6 +21,7 @@ struct NudgeAgent {
     let edge_mappings: [String: String] = [
         "tool_call": "tool_node",
         "ask_user": "user_node",
+        "llm_call": "llm_node",
         "finish": END
     ]
     
@@ -185,21 +186,33 @@ struct NudgeAgent {
                 let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.getUIElements(arguments: arguemnt_dict)
                 let server_response = formatUIElementsToString(ui_element_tree)
                 return [
+                    "tool_call_result": "Called tool get_ui_elemets. It has returned the updated application state which is stored in current_application_state.",
                     "current_application_state": server_response,
                     "no_of_iteration": iterations + 1
                 ]
             case "click_element_by_id":
                 os_log("Calling click_element_by_id", log: log, type: .debug)
-                try await NudgeLibrary.shared.clickElement(arguments: arguemnt_dict)
-                return [
-                    "current_application_state": "Successfully clicked the element. The state of application might have changed because of that",
-                    "no_of_iteration": iterations + 1
-                ]
+                let result = try await NudgeLibrary.shared.clickElement(arguments: arguemnt_dict)
+                let uiTree = result.uiTree
+                if !result.uiTree.isEmpty {
+                    let server_response = formatUIElementsToString(uiTree)
+                    return [
+                        "tool_call_result": "Called tool click_element_by_id. \(result.message) It has returned the ui tree with the element that you clicked as root.",
+                        "current_application_state": server_response,
+                        "no_of_iteration": iterations + 1
+                    ]
+                } else {
+                    return [
+                        "tool_call_result": "Called tool click_element_by_id. \(result.message)",
+                        "no_of_iteration": iterations + 1
+                    ]
+                }
             case "update_ui_element_tree":
                 os_log("Calling update_ui_element_tree", log: log, type: .debug)
                 let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.updateUIElementTree(arguments: arguemnt_dict)
                 let server_response = formatUIElementsToString(ui_element_tree)
                 return [
+                    "tool_call_result": "Called tool update_ui_element_tree.",
                     "current_application_state": server_response,
                     "no_of_iteration": iterations + 1
                 ]
@@ -258,7 +271,7 @@ struct NudgeAgent {
             return "finish"
         }
         
-        if (errors > 5 || iterations > 10) {
+        if (errors > 5 || iterations > 20) {
             os_log("Reached the limit of iterations and errors, stopping")
             return "finish"
         }
@@ -280,6 +293,11 @@ struct NudgeAgent {
         if message.finished != nil {
             os_log("Finishing because agent says: %@", log: log, type: .debug, message.finished!)
             return "finish"
+        }
+        
+        if message.agent_thought != nil {
+            os_log("Some how the agent just thought, no tool call nothin. So returning it back to llm call")
+            return "llm_call"
         }
         os_log("Why am i here", log: log, type: .debug)
         os_log("%@", log: log, type: .debug, String(data: response, encoding: .utf8) ?? "NO DATA")
