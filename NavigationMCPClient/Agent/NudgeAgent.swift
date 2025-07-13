@@ -26,7 +26,7 @@ struct NudgeAgent {
     
     struct agentResponse: Codable {
         let ask_user: String?
-        let finish: String?
+        let finished: String?
         let agent_thought: String?
     }
     
@@ -93,14 +93,17 @@ struct NudgeAgent {
         // Fill the agent outcome
         // Update anyother thing that is required
         os_log("contact_llm function called", log: log, type: .debug)
+        os_log("Current thought process", log: log, type: .debug)
+        if let thought = Action.agent_outcome?.choices.first?.message.content?.data(using: .utf8) {
+            let agent_response = try jsonDecoder.decode(agentResponse.self, from: thought)
+            let agent_thought = agent_response.agent_thought
+            os_log("Agent thought process atm: %@", log: log, type: .debug, agent_thought ?? "Nothing")
+        }
+        
         
         let user_query: String = Action.user_query ?? "Testing 123"
         let system_instructions: String = Action.system_instructions ?? "NO INSTRUCTIONS"
         let context = try buildContextFromState(Action)
-        os_log("-------------------------------", log: log, type: .debug)
-        os_log("CONTEXT", log: log, type: .debug)
-        os_log("%@", log: log, type: .debug, context)
-        os_log("-------------------------------", log: log, type: .debug)
 
         guard let system_message_to_llm: ChatQuery.ChatCompletionMessageParam = ChatQuery.ChatCompletionMessageParam(
             role: .system, content: system_instructions
@@ -131,8 +134,12 @@ struct NudgeAgent {
             tools: availableTools
             )
         
-        return try await performOpenAIRequestWithRetry(query: llm_query, maxRetries: 3)
+        guard let iteration: Int = Action.no_of_iteration else {
+            os_log("No of iterations variable doesn't exist", log: log, type: .error)
+            throw NudgeError.agentStateVarMissing(description: "The no_of_iteration doesn't exist")
+        }
         
+        return try await performOpenAIRequestWithRetry(query: llm_query, iteration: iteration, maxRetries: 3)
     }
     
     func tool_call(Action: NudgeAgentState) async throws -> PartialAgentState {
@@ -234,7 +241,7 @@ struct NudgeAgent {
             "chat_history":
                     [
                         "agent: \(response.ask_user ?? "Agent asked user")",
-                        "user: please proceed"
+                        "user: Do what you think is best. You have complete freedom to choose"
                     ]
         ]
     }
@@ -270,10 +277,13 @@ struct NudgeAgent {
         if message.ask_user != nil {
             return "ask_user"
         }
-        if message.finish != nil {
+        if message.finished != nil {
+            os_log("Finishing because agent says: %@", log: log, type: .debug, message.finished!)
             return "finish"
         }
-        
+        os_log("Why am i here", log: log, type: .debug)
+        os_log("%@", log: log, type: .debug, String(data: response, encoding: .utf8) ?? "NO DATA")
+
         return "finish"
     }
     
@@ -312,7 +322,7 @@ struct NudgeAgent {
     }
     
     
-    private func performOpenAIRequestWithRetry(query: ChatQuery, maxRetries: Int) async throws -> PartialAgentState {
+    private func performOpenAIRequestWithRetry(query: ChatQuery, iteration: Int, maxRetries: Int) async throws -> PartialAgentState {
         var retryCount = 0
         
         while retryCount <= maxRetries {
@@ -322,7 +332,10 @@ struct NudgeAgent {
                 let response = try await self.openAIClient.chats(query: query)
                 os_log("OpenAI request successful", log: log, type: .info)
                 
-                return ["agent_outcome": response]
+                return [
+                    "no_of_iteration": iteration + 1,
+                    "agent_outcome": response
+                ]
                 
             } catch {
                 retryCount += 1
@@ -384,9 +397,14 @@ struct NudgeAgent {
             contextComponents.append("## System Knowledge\n- \(knowledgeString)")
         }
         
+        // Add user query
+        if let user_query = state.user_query {
+            contextComponents.append("## user_query\n\(user_query)")
+        }
+        
         // Add current application UI state if available
         if let currentAppState = state.current_application_state {
-            contextComponents.append("## Current UI State\n\(currentAppState)")
+            contextComponents.append("## current_application_state\n\(currentAppState)")
         }
         
         // Add todo list if available
@@ -401,13 +419,19 @@ struct NudgeAgent {
         if let message = state.agent_outcome?.choices.first?.message.content?.data(using: .utf8) {
             let agent_message = try self.jsonDecoder.decode(agentResponse.self, from: message)
             if let thought = agent_message.agent_thought {
-                contextComponents.append("## Thought process of the agent agent_thought: \(thought)")
+                contextComponents.append("## agent_thought\n\(thought)")
             }
         }
         
         // Add tool call result to the context
         if let tool_call_result = state.tool_call_result {
-            contextComponents.append("## Tool call result\n\(tool_call_result)")
+            contextComponents.append("## tool_call_result\n\(tool_call_result)")
+        }
+        
+        // Add chat history to the context
+        if let chat_history = state.chat_history {
+            contextComponents.append("## chat_history\n")
+            contextComponents.append(contentsOf: chat_history)
         }
         
         // Join all components with double newlines for clear separation
