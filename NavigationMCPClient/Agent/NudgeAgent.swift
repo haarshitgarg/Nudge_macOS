@@ -216,6 +216,15 @@ struct NudgeAgent {
                     "current_application_state": server_response,
                     "no_of_iteration": iterations + 1
                 ]
+            case "set_text_in_element" :
+                os_log("Calling set_text_in_element", log: log, type: .debug)
+                let ui_element_tree = try await NudgeLibrary.shared.setTextInElement(arguments: arguemnt_dict)
+                let server_response = formatUIElementsToString(ui_element_tree.uiTree)
+                return [
+                    "tool_call_result": "Called tool set_text_in_element. Retured with message: \(ui_element_tree.message)",
+                    "current_application_state": server_response,
+                    "no_of_iteration": iterations + 1
+                ]
             default:
                 return [
                     "tool_call_result": "The tool with name \(function_name) is not implemented or not supported by the server. Please look into the available tools or ask user for more help",
