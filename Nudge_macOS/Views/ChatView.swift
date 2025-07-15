@@ -25,8 +25,7 @@ struct ChatView: View {
                         HStack(spacing: 12) {
                             // Seamless transition icon (sparkles → loading)
                             SeamlessTransitionView(
-                                uiState: chatViewModel.uiState,
-                                animationPhase: chatViewModel.animationPhase
+                                uiState: chatViewModel.uiState
                             )
                             
                             // TEXT FIELD - Disappears instantly
@@ -69,7 +68,7 @@ struct ChatView: View {
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
-                                Color.clear.background(.regularMaterial)
+                                Color.clear.background(.regularMaterial.opacity(0.95))
                             }
                             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                             .opacity(chatViewModel.uiState == .input ? 1.0 : 0.0)
@@ -110,8 +109,7 @@ struct ChatView: View {
                     HStack(alignment: .top, spacing: 12) {
                         // Loading icon - always in same position as sparkles
                         SeamlessTransitionView(
-                            uiState: chatViewModel.uiState,
-                            animationPhase: chatViewModel.animationPhase
+                            uiState: chatViewModel.uiState
                         )
                         .background(
                             ZStack {
@@ -120,7 +118,7 @@ struct ChatView: View {
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
-                                Color.clear.background(.regularMaterial)
+                                Color.clear.background(.regularMaterial.opacity(0.95))
                             }
                             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                             .opacity(chatViewModel.uiState == .transitioning || chatViewModel.uiState == .thinking ? 1.0 : 0.0)
@@ -153,7 +151,7 @@ struct ChatView: View {
                                             startPoint: .topLeading,
                                             endPoint: .bottomTrailing
                                         )
-                                        Color.clear.background(.regularMaterial)
+                                        Color.clear.background(.regularMaterial.opacity(0.95))
                                     }
                                     .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                                 )
@@ -196,7 +194,6 @@ struct ChatView: View {
                                             .transition(.opacity)
                                         }
                                     }
-                                    .animation(.easeInOut(duration: 0.2), value: chatViewModel.llmMessages.count)
                                 }
                             }
                         }
@@ -207,19 +204,11 @@ struct ChatView: View {
                     .padding(.vertical, 12)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading) // Remove fixed width, allow full width
+            .frame(maxWidth: .infinity, minHeight: 120, alignment: .center) // Center align the content
         }
         .padding(.horizontal, 40) // Increase horizontal padding significantly
         .padding(.vertical, 20) // Increase vertical padding
         .frame(maxWidth: .infinity, alignment: .center) // Center the content with full width
-        .scaleEffect(self.chatViewModel.animationPhase == 1 ? 1.01 : 1.0)
-        .animation(.easeInOut(duration: 1.0), value: self.chatViewModel.animationPhase)
-        .onAppear {
-            self.chatViewModel.startAnimation()
-        }
-        .onDisappear {
-            self.chatViewModel.stopAnimation()
-        }
     }
 }
 

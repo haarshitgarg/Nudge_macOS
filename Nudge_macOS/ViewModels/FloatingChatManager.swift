@@ -43,7 +43,7 @@ class FloatingChatManager: ObservableObject {
             let panelRect = panel!.frame
             let newOrigin = NSPoint(
                 x: (screenRect.width - panelRect.width) / 2,
-                y: (screenRect.height - panelRect.height) / 2 + screenRect.height * 0.2
+                y: (screenRect.height - panelRect.height) / 2
             )
             panel?.setFrameOrigin(newOrigin)
         }
