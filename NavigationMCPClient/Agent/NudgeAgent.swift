@@ -31,6 +31,8 @@ struct NudgeAgent {
         let agent_thought: String?
     }
     
+    var serverDelegate: NudgeAgentDelegate?
+    
     // Tools
     var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
     private let jsonEncoder: JSONEncoder = JSONEncoder()
@@ -97,10 +99,13 @@ struct NudgeAgent {
         os_log("Current thought process", log: log, type: .debug)
         if let thought = Action.agent_outcome?.choices.first?.message.content?.data(using: .utf8) {
             let agent_response = try jsonDecoder.decode(agentResponse.self, from: thought)
-            let agent_thought = agent_response.agent_thought
-            os_log("Agent thought process atm: %@", log: log, type: .debug, agent_thought ?? "Nothing")
+            if let agent_thought = agent_response.agent_thought {
+                os_log("Agent thought process atm: %@", log: log, type: .debug, agent_thought)
+                self.serverDelegate?.agentRespondedWithThought(thought: agent_thought)
+            } else {
+                os_log("Agent thought process atm: %@", log: log, type: .debug, "NO THOUGHT")
+            }
         }
-        
         
         let user_query: String = Action.user_query ?? "Testing 123"
         let system_instructions: String = Action.system_instructions ?? "NO INSTRUCTIONS"
@@ -137,6 +142,7 @@ struct NudgeAgent {
         
         guard let iteration: Int = Action.no_of_iteration else {
             os_log("No of iterations variable doesn't exist", log: log, type: .error)
+            self.serverDelegate?.agentFacedError(error: "Having trouble tracking progress...")
             throw NudgeError.agentStateVarMissing(description: "The no_of_iteration doesn't exist")
         }
         
@@ -149,31 +155,40 @@ struct NudgeAgent {
         
         guard let errors = Action.no_of_errors else {
             os_log("The errors variable not found in the state", log: log, type: .debug)
+            self.serverDelegate?.agentFacedError(error: "Having trouble tracking errors...")
             throw NudgeError.agentStateVarMissing(description: "no_of_errors var missing")
         }
         guard let iterations = Action.no_of_iteration else {
             os_log("The iterations variable not found in the state", log: log, type: .debug)
+            self.serverDelegate?.agentFacedError(error: "Having trouble tracking progress...")
             throw NudgeError.agentStateVarMissing(description: "no_of_iteration var missing")
         }
 
         
         guard let tool_calls = Action.agent_outcome?.choices.first?.message.toolCalls else {
             os_log("Tool call list is empty", log: log, type: .error)
+            self.serverDelegate?.agentFacedError(error: "Tool Call list is empty, probably the tools are not available")
             return [
-                "no_of_iteration": iterations + 1,
-                "no_of_errors": errors + 1
+                "no_of_errors": errors + 1,
+                "no_of_iteration": iterations + 1
             ]
         }
         
         guard let curr_tool = tool_calls.first else {
             os_log("Tool call list is empty", log: log, type: .error)
-            throw NudgeError.toolcalllistempty
+            self.serverDelegate?.agentFacedError(error: "Tool Call list is empty, probably the tools are not available")
+            return [
+                "no_of_errors": errors + 1,
+                "no_of_iteration": iterations + 1
+            ]
         }
         
         let function_name = curr_tool.function.name
+        self.serverDelegate?.agentCalledTool(toolName: function_name)
         os_log("Tool call function name: %@", log: log, type: .debug, function_name)
         guard let argumentsData = curr_tool.function.arguments.data(using: .utf8) else {
             os_log("Failed to convert arguments to Data", log: log, type: .error)
+            self.serverDelegate?.agentFacedError(error: "Arguments for the tool call are not in correct format")
             throw NudgeError.cannotParseToolArguments
         }
         let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
@@ -233,8 +248,10 @@ struct NudgeAgent {
                 ]
             }
         } catch {
+            let errorMessage = "The following error occured while performing the toolcall: \(error.localizedDescription)"
+            self.serverDelegate?.agentFacedError(error: "Something went wrong while using a tool...")
             return [
-                "current_application_state": "The following error occured while performing the toolcall: \(error.localizedDescription)",
+                "current_application_state": errorMessage,
                 "no_of_errors": errors + 1,
                 "no_of_iteration": iterations + 1
             ]
@@ -246,17 +263,20 @@ struct NudgeAgent {
         // ASK user for its input
         guard let agent_outcome = Action.agent_outcome else {
             os_log("The agent_outcome variable not found in the state", log: log, type: .debug)
+            self.serverDelegate?.agentFacedError(error: "Having trouble understanding the current state...")
             throw NudgeError.agentStateVarMissing(description: "agent_outcome variable is missing")
         }
         
         guard let message = agent_outcome.choices.first?.message.content?.data(using: .utf8) else {
             os_log("The content from llm is missing")
+            self.serverDelegate?.agentFacedError(error: "Having trouble processing the response...")
             throw NudgeError.agentStateVarMissing(description: "agent_outcome has no content")
         }
         
         let response: agentResponse = try self.jsonDecoder.decode(agentResponse.self, from: message)
         if response.ask_user != nil {
             os_log("Asking user for information", log: log, type: .debug)
+            self.serverDelegate?.agentAskedUserForInput(question: response.ask_user!)
         }
         
         return [
@@ -273,14 +293,16 @@ struct NudgeAgent {
         os_log("Edge conditon is checked", log: log, type: .debug)
         guard let errors = Action.no_of_errors else {
             os_log("The errors variable not found in the state", log: log, type: .debug)
+            self.serverDelegate?.agentFacedError(error: "Having trouble tracking errors...")
             return "finish"
         }
         guard let iterations = Action.no_of_iteration else {
             os_log("The iterations variable not found in the state", log: log, type: .debug)
+            self.serverDelegate?.agentFacedError(error: "Having trouble tracking progress...")
             return "finish"
         }
         
-        if (errors > 5 || iterations > 20) {
+        if (errors > 5 || iterations > 30) {
             os_log("Reached the limit of iterations and errors, stopping")
             return "finish"
         }
@@ -292,11 +314,13 @@ struct NudgeAgent {
         
         guard let response = Action.agent_outcome?.choices.first?.message.content?.data(using: .utf8) else {
             os_log("The agent outcome variable has no content to decide if we need to ask user or finish", log: log, type: .debug)
+            self.serverDelegate?.agentFacedError(error: "Having trouble understanding the next step...")
             throw NudgeError.agentStateVarMissing(description: "The agent_outcome has no content")
         }
         os_log("Response received will decide if we need to ask user or finish")
         let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: response)
         if message.ask_user != nil {
+            self.serverDelegate?.agentAskedUserForInput(question: message.ask_user!)
             return "ask_user"
         }
         if message.finished != nil {
@@ -306,6 +330,7 @@ struct NudgeAgent {
         
         if message.agent_thought != nil {
             os_log("Some how the agent just thought, no tool call nothin. So returning it back to llm call")
+            self.serverDelegate?.agentRespondedWithThought(thought: message.agent_thought!)
             return "llm_call"
         }
         os_log("Why am i here", log: log, type: .debug)
@@ -403,11 +428,15 @@ struct NudgeAgent {
                 }
                 
                 // If not retryable or max retries exceeded, throw descriptive error
-                throw NudgeError.failedToSendMessageToOpenAI(descripiton: "\(detailedError) [\(errorContext)]")
+                let finalError = "\(detailedError) [\(errorContext)]"
+                self.serverDelegate?.agentFacedError(error: "Having trouble connecting to AI service...")
+                throw NudgeError.failedToSendMessageToOpenAI(descripiton: finalError)
             }
         }
         
-        throw NudgeError.failedToSendMessageToOpenAI(descripiton: "Max retries exceeded. Model: \(query.model), Messages: \(query.messages.count)")
+        let maxRetriesError = "Max retries exceeded. Model: \(query.model), Messages: \(query.messages.count)"
+        self.serverDelegate?.agentFacedError(error: "AI service is temporarily unavailable...")
+        throw NudgeError.failedToSendMessageToOpenAI(descripiton: maxRetriesError)
     }
     
     private func buildContextFromState(_ state: NudgeAgentState) throws -> String {
@@ -447,6 +476,7 @@ struct NudgeAgent {
             let agent_message = try self.jsonDecoder.decode(agentResponse.self, from: message)
             if let thought = agent_message.agent_thought {
                 contextComponents.append("## agent_thought\n\(thought)")
+                self.serverDelegate?.agentRespondedWithThought(thought: thought)
             }
         }
         
@@ -504,3 +534,15 @@ struct NudgeAgent {
         os_log("NudgeAgent: Tools updated, now have %d tools", log: log, type: .debug, self.chat_gpt_tools.count)
     }
 }
+
+// MARK: - Nudge Agent delegate protocol
+protocol NudgeAgentDelegate {
+    func agentCalledTool(toolName: String)
+    
+    func agentAskedUserForInput(question: String)
+    
+    func agentRespondedWithThought(thought: String)
+    
+    func agentFacedError(error: String)
+}
+    

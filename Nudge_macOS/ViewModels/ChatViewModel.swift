@@ -29,6 +29,7 @@ enum UITransitionState: String, CaseIterable {
     }
 }
 
+// MARK: - ChatViewModel
 @MainActor
 class ChatViewModel: ObservableObject {
     public static let shared = ChatViewModel()
@@ -50,6 +51,11 @@ class ChatViewModel: ObservableObject {
     @Published public var showInputView: Bool = true
     @Published public var showSparklesView: Bool = false
     @Published public var showThinkingView: Bool = false
+    
+    // MARK: - Agent Bubble State Management
+    @Published public var showAgentBubble: Bool = false
+    @Published public var agentBubbleMessage: AgentBubbleMessage?
+    private var bubbleTimer: Timer?
     
     
     
@@ -115,6 +121,54 @@ class ChatViewModel: ObservableObject {
         }
     }
     
+    // MARK: - Agent Bubble Management
+    public func showAgentBubble(message: String, type: AgentMessageType) {
+        // Cancel any existing timer
+        bubbleTimer?.invalidate()
+        
+        // Update bubble content
+        agentBubbleMessage = AgentBubbleMessage(text: message, type: type)
+        showAgentBubble = true
+        
+        // Auto-dismiss after 4 seconds
+        bubbleTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: false) { _ in
+            Task {
+                await self.hideAgentBubble()
+            }
+        }
+    }
+    
+    public func hideAgentBubble() {
+        showAgentBubble = false
+        bubbleTimer?.invalidate()
+        bubbleTimer = nil
+        
+        // Clear message after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.agentBubbleMessage = nil
+        }
+    }
+    
+    public func showAgentThought(_ thought: String) {
+        showAgentBubble(message: thought, type: .thought)
+    }
+    
+    public func showToolExecution(_ toolName: String) {
+        let message = "Using \(toolName) to assist you"
+        showAgentBubble(message: message, type: .toolExecution)
+    }
+    
+    public func showProgressMessage(_ message: String) {
+        showAgentBubble(message: message, type: .progress)
+    }
+    
+    public func showSuccessMessage(_ message: String) {
+        showAgentBubble(message: message, type: .success)
+    }
+    
+    public func showErrorMessage(_ message: String) {
+        showAgentBubble(message: message, type: .error)
+    }
 
     deinit {
         os_log("ChatViewModel is being deinitialized", log: log, type: .debug)
@@ -125,6 +179,10 @@ class ChatViewModel: ObservableObject {
     func cleanup() {
         os_log("Cleaning up ChatViewModel resources", log: log, type: .debug)
         
+        // Cancel bubble timer
+        bubbleTimer?.invalidate()
+        bubbleTimer = nil
+        
         // Disconnect XPC clients (these are not MainActor isolated)
         Task.detached {
             await self.navClient.disconnect()
@@ -132,6 +190,7 @@ class ChatViewModel: ObservableObject {
     }
 }
 
+// MARK: - ShortcutManagerDelegate Implementation
 extension ChatViewModel: ShortcutManagerDelegate {
     func shortcutManagerDidNotHaveAccessibilityPermissions() {
         os_log("ShortcutManager did not have accessibility permissions", log: log, type: .error)
@@ -158,6 +217,9 @@ extension ChatViewModel: NudgeNavClientDelegate {
         currentTool = ""
         llmMessages.removeAll()
         transitionToThinking()
+        
+        // Show agent bubble
+        showProgressMessage("Starting analysis...")
     }
     
     func onLLMLoopFinished() {
@@ -165,9 +227,12 @@ extension ChatViewModel: NudgeNavClientDelegate {
         llmLoopRunning = false
         currentTool = ""
         transitionToInput()
+        
+        // Show completion message
+        showSuccessMessage("Task completed successfully!")
     }
     
-    func onToolCalled(toolName: String, arguments: String) {
+    func onToolCalled(toolName: String) {
         os_log("Tool called: %@ - updating UI", log: log, type: .debug, toolName)
         currentTool = toolName
         
@@ -175,11 +240,17 @@ extension ChatViewModel: NudgeNavClientDelegate {
         if uiState == .thinking {
             transitionToResponding()
         }
+        
+        // Show tool execution bubble
+        showToolExecution(toolName)
     }
     
     func onLLMMessage(_ message: String) {
         os_log("LLM message received in ChatViewModel: %@ - updating UI", log: log, type: .info, message)
         llmMessages.append(message)
+        
+        // Show agent thoughts in bubble
+        showAgentThought(message)
     }
     
     func onError(_ error: String) {
@@ -188,6 +259,9 @@ extension ChatViewModel: NudgeNavClientDelegate {
         currentTool = ""
         llmMessages.append("Error: \(error)")
         transitionToInput()
+        
+        // Show error message in bubble
+        showErrorMessage(error)
     }
 }
 

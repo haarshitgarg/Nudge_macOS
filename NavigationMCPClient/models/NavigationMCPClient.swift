@@ -35,6 +35,8 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         self.nudgeAgent = try! NudgeAgent()
         super.init()
         
+        self.nudgeAgent.serverDelegate = self
+
         os_log("NavigationMCPClient initialized - instance: %@", log: log, type: .debug, String(describing: self))
         jsonEncoder.outputFormatting = [.prettyPrinted]
         os_log("Initializing the nudge agent", log: log, type: .debug)
@@ -283,5 +285,24 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         os_log("Deinitialising the xpc client", log: log, type: .debug)
     }
     
+}
+
+// MARK: - Delegation protocol from NudgeAgent
+extension NavigationMCPClient: NudgeAgentDelegate {
+    func agentFacedError(error: String) {
+        self.callbackClient?.onError(error)
+    }
+    
+    func agentRespondedWithThought(thought: String) {
+        self.callbackClient?.onLLMMessage(thought)
+    }
+    
+    func agentCalledTool(toolName: String) {
+        self.callbackClient?.onToolCalled(toolName: toolName)
+    }
+    
+    func agentAskedUserForInput(question: String) {
+        self.callbackClient?.onLLMMessage(question)
+    }
 }
 

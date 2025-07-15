@@ -69,11 +69,6 @@ struct LoadingView: View {
     
     var body: some View {
         ZStack {
-            // Background circle
-            //Circle()
-            //    .fill(Color.black.opacity(0.1))
-            //    .frame(width: 150, height: 150)
-            
             // Static circular thread
             CircularThread(
                 maxAmplitude: 6,
