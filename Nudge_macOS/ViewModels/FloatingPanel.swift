@@ -3,7 +3,7 @@ import os
 
 // MARK: - Notification Names
 extension Notification.Name {
-    static let dismissChatPanel = Notification.Name("dismissChatPanel")
+    static let escKeyPressed = Notification.Name("dismissChatPanel")
 }
 
 class FloatingPanel: NSPanel {
@@ -59,7 +59,7 @@ class FloatingPanel: NSPanel {
                 // Check for escape key (keyCode 53)
                 if event.keyCode == 53 {
                     os_log("Escape key pressed, dismissing panel", log: self.log, type: .debug)
-                    NotificationCenter.default.post(name: .dismissChatPanel, object: nil)
+                    NotificationCenter.default.post(name: .escKeyPressed, object: nil)
                     return nil // Consume the event
                 }
             }

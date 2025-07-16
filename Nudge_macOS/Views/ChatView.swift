@@ -22,11 +22,12 @@ struct ChatView: View {
                         Image(systemName: "sparkles")
                             .font(.title2)
                             .foregroundColor(.accentColor)
+                        InputView(textFieldText: "Type to Nudge")
                     }
                     else {
                        // TODO: Add a thinking loop here. Probably my LoadingView
+                        InputView(textFieldText: "Press Esc to cancel")
                     }
-                    InputView()
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -51,7 +52,7 @@ struct ChatView: View {
             
             // Agent bubble container
             AgentBubbleContainerView(chatViewModel: chatViewModel)
-                .frame(maxWidth: 300, alignment: .center)
+                .frame(maxWidth: 300, alignment: .leading)
         }
         .padding(.horizontal, 40) // Increase horizontal padding significantly
         .padding(.vertical, 10) // Increase vertical padding

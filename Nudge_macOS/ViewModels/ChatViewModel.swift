@@ -80,6 +80,10 @@ class ChatViewModel: ObservableObject {
         try navClient.sendMessageToMCPClient(msg)
     }
     
+    public func terminateAgent() throws {
+        try navClient.interruptAgent()
+    }
+    
     
     
     // MARK: - UI Transition State Machine
@@ -131,7 +135,7 @@ class ChatViewModel: ObservableObject {
         showAgentBubble = true
         
         // Auto-dismiss after 4 seconds
-        bubbleTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: false) { _ in
+        bubbleTimer = Timer.scheduledTimer(withTimeInterval: 9.0, repeats: false) { _ in
             Task {
                 await self.hideAgentBubble()
             }

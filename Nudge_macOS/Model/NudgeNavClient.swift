@@ -79,6 +79,23 @@ class NudgeNavClient: NSObject {
         os_log("Message sent to MCP client: %@", log: log, type: .debug, message)
     }
     
+    public func interruptAgent() throws {
+        if connection == nil  {
+            os_log("Connection is not established", log: log, type: .error)
+            try self.connect()
+        }
+        guard let connection = connection else {
+            os_log("Connection is not established", log: log, type: .error)
+            throw NudgeError.connectionFailed
+        }
+        
+        let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+            os_log("Error occurred while getting the proxy: %@", log: self.log, type: .error, error.localizedDescription)
+        } as? NavigationMCPClientProtocol
+        
+        proxy?.interruptAgentExecution()
+    }
+    
     public func registerCallbackClient() {
         guard let connection = connection else {
             os_log("Connection is not established", log: log, type: .error)

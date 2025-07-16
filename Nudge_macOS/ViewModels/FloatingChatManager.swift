@@ -22,8 +22,8 @@ class FloatingChatManager: ObservableObject {
         // Listen for dismiss notifications from the panel
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(handleDismissNotification),
-            name: .dismissChatPanel,
+            selector: #selector(handleEscKeyEvent),
+            name: .escKeyPressed,
             object: nil
         )
     }
@@ -67,9 +67,18 @@ class FloatingChatManager: ObservableObject {
     }
     
     @MainActor
-    @objc private func handleDismissNotification() {
-        os_log("Received dismiss notification, hiding chat", log: log, type: .debug)
-        hideChat()
+    @objc private func handleEscKeyEvent() {
+        os_log("Received escape key, hiding chat", log: log, type: .debug)
+        if ChatViewModel.shared.uiState != .input {
+            os_log("UI state is not input, hence terminating the agent execution", log: log, type: .debug)
+            do {
+                try ChatViewModel.shared.terminateAgent()
+            } catch {
+                os_log("Failed to terminate agent: %@", log: log, type: .fault, error.localizedDescription)
+            }
+        } else {
+            hideChat()
+        }
     }
     
     func cleanup() {

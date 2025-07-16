@@ -167,7 +167,6 @@ struct NudgeAgent {
         
         guard let tool_calls = Action.agent_outcome?.choices.first?.message.toolCalls else {
             os_log("Tool call list is empty", log: log, type: .error)
-            self.serverDelegate?.agentFacedError(error: "Tool Call list is empty, probably the tools are not available")
             return [
                 "no_of_errors": errors + 1,
                 "no_of_iteration": iterations + 1
@@ -176,7 +175,6 @@ struct NudgeAgent {
         
         guard let curr_tool = tool_calls.first else {
             os_log("Tool call list is empty", log: log, type: .error)
-            self.serverDelegate?.agentFacedError(error: "Tool Call list is empty, probably the tools are not available")
             return [
                 "no_of_errors": errors + 1,
                 "no_of_iteration": iterations + 1
@@ -249,7 +247,6 @@ struct NudgeAgent {
             }
         } catch {
             let errorMessage = "The following error occured while performing the toolcall: \(error.localizedDescription)"
-            self.serverDelegate?.agentFacedError(error: "Something went wrong while using a tool...")
             return [
                 "current_application_state": errorMessage,
                 "no_of_errors": errors + 1,
@@ -294,12 +291,12 @@ struct NudgeAgent {
         guard let errors = Action.no_of_errors else {
             os_log("The errors variable not found in the state", log: log, type: .debug)
             self.serverDelegate?.agentFacedError(error: "Having trouble tracking errors...")
-            return "finish"
+            throw NudgeError.agentStateVarMissing(description: "The agent_outcome has no no_of_error")
         }
         guard let iterations = Action.no_of_iteration else {
             os_log("The iterations variable not found in the state", log: log, type: .debug)
             self.serverDelegate?.agentFacedError(error: "Having trouble tracking progress...")
-            return "finish"
+            throw NudgeError.agentStateVarMissing(description: "The agent_outcome has no no_of_iteration")
         }
         
         if (errors > 5 || iterations > 30) {
@@ -320,7 +317,6 @@ struct NudgeAgent {
         os_log("Response received will decide if we need to ask user or finish")
         let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: response)
         if message.ask_user != nil {
-            self.serverDelegate?.agentAskedUserForInput(question: message.ask_user!)
             return "ask_user"
         }
         if message.finished != nil {
@@ -330,7 +326,6 @@ struct NudgeAgent {
         
         if message.agent_thought != nil {
             os_log("Some how the agent just thought, no tool call nothin. So returning it back to llm call")
-            self.serverDelegate?.agentRespondedWithThought(thought: message.agent_thought!)
             return "llm_call"
         }
         os_log("Why am i here", log: log, type: .debug)
@@ -476,7 +471,6 @@ struct NudgeAgent {
             let agent_message = try self.jsonDecoder.decode(agentResponse.self, from: message)
             if let thought = agent_message.agent_thought {
                 contextComponents.append("## agent_thought\n\(thought)")
-                self.serverDelegate?.agentRespondedWithThought(thought: thought)
             }
         }
         
@@ -522,7 +516,7 @@ struct NudgeAgent {
     
     // MARK: Public functions
 
-    public func invoke() async throws -> NudgeAgentState? {
+    public mutating func invoke() async throws -> NudgeAgentState? {
         os_log("Running the Nudge Agent...", log: log, type: .debug)
         os_log("Current Context: %@", log: log, type: .debug, try self.buildContextFromState(self.state))
         return try await self.agent?.invoke(inputs: self.state.data, verbose: true)
@@ -532,6 +526,10 @@ struct NudgeAgent {
         self.chat_gpt_tools = tools
         self.state.data["available_tools"] = tools
         os_log("NudgeAgent: Tools updated, now have %d tools", log: log, type: .debug, self.chat_gpt_tools.count)
+    }
+    
+    public mutating func interruptAgent() {
+        self.agent?.interrupt("Agent interrupted by user")
     }
 }
 

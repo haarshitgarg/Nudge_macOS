@@ -8,11 +8,17 @@
 import OSLog
 import SwiftUI
 
+
 // Input view for the Nudge macOS application
 struct InputView: View {
+    @State public var textFieldText: String
     let log = OSLog(subsystem: "Harshit.Nudge", category: "InputView")
     var chatViewModel: ChatViewModel = ChatViewModel.shared
     @State private var query: String = ""
+    
+    private func changeTextFieldText(_ newText: String) {
+        self.textFieldText = newText
+    }
     
     private func sendAction() {
         guard chatViewModel.uiState.isInteractionEnabled else { return }
@@ -31,7 +37,7 @@ struct InputView: View {
             // Main Input Bar
             HStack(spacing: 12) {
                 // TEXT FIELD - Disappears instantly
-                TextField("Type to Nudge", text: $query)
+                TextField(self.textFieldText, text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 20))
                     .disabled(!chatViewModel.uiState.isInteractionEnabled)
@@ -57,6 +63,6 @@ struct InputView: View {
 }
 
 #Preview {
-    InputView()
+    InputView(textFieldText: "Type to Nudge")
 }
 

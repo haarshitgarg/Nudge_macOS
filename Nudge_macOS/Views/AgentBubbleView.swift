@@ -89,7 +89,7 @@ struct AgentBubbleView: View {
         
         // Start typing animation
         var currentIndex = 0
-        typingTimer = Timer.scheduledTimer(withTimeInterval: 0.04, repeats: true) { timer in
+        typingTimer = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { timer in
             // Check if message changed during animation
             guard currentMessageId == messageId else {
                 timer.invalidate()

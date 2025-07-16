@@ -61,7 +61,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 os_log("Set user query in agent state: %@", log: log, type: .debug, message)
                 
                 let final_state = try await self.nudgeAgent.invoke()
-                os_log("Agent invocation completed. Iterations: %{public}d, Errors: %{public}d, Tool calls result: %{public}@", 
+                os_log("Agent invocation completed. Iterations: %{public}d, Errors: %{public}d, Tool calls result: %{public}@",
                        log: log, type: .info, 
                        final_state?.no_of_iteration ?? 0,
                        final_state?.no_of_errors ?? 0,
@@ -90,6 +90,11 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         
         // Store a strong reference to prevent deallocation during async operations
         // The weak reference might be getting lost during async tasks
+    }
+    
+    @objc func interruptAgentExecution() {
+        os_log("Interrupting agent execution", log: log, type: .debug)
+        self.nudgeAgent.interruptAgent()
     }
     
     @objc func terminate() {
