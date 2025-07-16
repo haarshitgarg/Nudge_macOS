@@ -16,6 +16,9 @@ import Foundation
     // Set the callback client for two-way communication
     func setCallbackClient(_ client: NavigationMCPClientCallbackProtocol)
     
+    // interrupt the agent execution
+    func interruptAgentExecution()
+    
     func terminate()
     
     func ping(_ message: String)

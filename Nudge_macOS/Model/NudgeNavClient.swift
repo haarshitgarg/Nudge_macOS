@@ -13,7 +13,7 @@ import os
 protocol NudgeNavClientDelegate: AnyObject {
     func onLLMLoopStarted()
     func onLLMLoopFinished()
-    func onToolCalled(toolName: String, arguments: String)
+    func onToolCalled(toolName: String)
     func onLLMMessage(_ message: String)
     func onError(_ error: String)
 }
@@ -79,6 +79,23 @@ class NudgeNavClient: NSObject {
         os_log("Message sent to MCP client: %@", log: log, type: .debug, message)
     }
     
+    public func interruptAgent() throws {
+        if connection == nil  {
+            os_log("Connection is not established", log: log, type: .error)
+            try self.connect()
+        }
+        guard let connection = connection else {
+            os_log("Connection is not established", log: log, type: .error)
+            throw NudgeError.connectionFailed
+        }
+        
+        let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+            os_log("Error occurred while getting the proxy: %@", log: self.log, type: .error, error.localizedDescription)
+        } as? NavigationMCPClientProtocol
+        
+        proxy?.interruptAgentExecution()
+    }
+    
     public func registerCallbackClient() {
         guard let connection = connection else {
             os_log("Connection is not established", log: log, type: .error)
@@ -138,10 +155,10 @@ extension NudgeNavClient: NavigationMCPClientCallbackProtocol {
         }
     }
     
-    @objc func onToolCalled(toolName: String, arguments: String) {
-        os_log("Tool called: %@ with arguments: %@", log: log, type: .debug, toolName, arguments)
+    @objc func onToolCalled(toolName: String) {
+        os_log("Tool called: %@", log: log, type: .debug, toolName)
         Task { @MainActor in
-            delegate?.onToolCalled(toolName: toolName, arguments: arguments)
+            delegate?.onToolCalled(toolName: toolName)
         }
     }
     
@@ -150,6 +167,12 @@ extension NudgeNavClient: NavigationMCPClientCallbackProtocol {
         Task { @MainActor in
             self.delegate?.onLLMMessage(message)
         }
+    }
+    
+    @objc func onUserMessage(_ message: String) {
+        os_log("User message received: %@", log: log, type: .info, message)
+        
+        // TODO: Handle request from LLM for user input
     }
     
     @objc func onError(_ error: String) {

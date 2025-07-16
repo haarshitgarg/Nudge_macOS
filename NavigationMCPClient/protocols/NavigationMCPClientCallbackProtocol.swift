@@ -19,11 +19,15 @@ import Foundation
     /// - Parameters:
     ///   - toolName: Name of the tool being called
     ///   - arguments: Tool arguments as JSON string
-    func onToolCalled(toolName: String, arguments: String)
+    func onToolCalled(toolName: String)
     
     /// Called when the LLM sends a message or response
     /// - Parameter message: The message from the LLM
     func onLLMMessage(_ message: String)
+    
+    /// Called when the LLM request for user input
+    /// - Parameter message: The message from the LLM
+    func onUserMessage(_ message: String)
     
     /// Called when an error occurs during processing
     /// - Parameter error: Description of the error

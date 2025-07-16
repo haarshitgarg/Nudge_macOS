@@ -35,6 +35,8 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         self.nudgeAgent = try! NudgeAgent()
         super.init()
         
+        self.nudgeAgent.serverDelegate = self
+
         os_log("NavigationMCPClient initialized - instance: %@", log: log, type: .debug, String(describing: self))
         jsonEncoder.outputFormatting = [.prettyPrinted]
         os_log("Initializing the nudge agent", log: log, type: .debug)
@@ -59,7 +61,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 os_log("Set user query in agent state: %@", log: log, type: .debug, message)
                 
                 let final_state = try await self.nudgeAgent.invoke()
-                os_log("Agent invocation completed. Iterations: %{public}d, Errors: %{public}d, Tool calls result: %{public}@", 
+                os_log("Agent invocation completed. Iterations: %{public}d, Errors: %{public}d, Tool calls result: %{public}@",
                        log: log, type: .info, 
                        final_state?.no_of_iteration ?? 0,
                        final_state?.no_of_errors ?? 0,
@@ -88,6 +90,11 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         
         // Store a strong reference to prevent deallocation during async operations
         // The weak reference might be getting lost during async tasks
+    }
+    
+    @objc func interruptAgentExecution() {
+        os_log("Interrupting agent execution", log: log, type: .debug)
+        self.nudgeAgent.interruptAgent()
     }
     
     @objc func terminate() {
@@ -283,5 +290,24 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         os_log("Deinitialising the xpc client", log: log, type: .debug)
     }
     
+}
+
+// MARK: - Delegation protocol from NudgeAgent
+extension NavigationMCPClient: NudgeAgentDelegate {
+    func agentFacedError(error: String) {
+        self.callbackClient?.onError(error)
+    }
+    
+    func agentRespondedWithThought(thought: String) {
+        self.callbackClient?.onLLMMessage(thought)
+    }
+    
+    func agentCalledTool(toolName: String) {
+        self.callbackClient?.onToolCalled(toolName: toolName)
+    }
+    
+    func agentAskedUserForInput(question: String) {
+        self.callbackClient?.onLLMMessage(question)
+    }
 }
 

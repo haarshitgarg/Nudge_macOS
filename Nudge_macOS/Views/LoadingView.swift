@@ -66,21 +66,14 @@ struct CircularThread: Shape {
 }
 
 struct LoadingView: View {
-    @State private var phase: Double = 0.0
-    @State private var centerAngle: Double = 0.0
     
     var body: some View {
         ZStack {
-            // Background circle
-            //Circle()
-            //    .fill(Color.black.opacity(0.1))
-            //    .frame(width: 150, height: 150)
-            
-            // Animated circular thread
+            // Static circular thread
             CircularThread(
                 maxAmplitude: 6,
-                phase: phase,
-                centerAngle: centerAngle
+                phase: 0,
+                centerAngle: 0
             )
             .stroke(
                 LinearGradient(
@@ -95,8 +88,8 @@ struct LoadingView: View {
             
             CircularThread(
                 maxAmplitude: 6,
-                phase: phase,
-                centerAngle: centerAngle + 0.6
+                phase: 0,
+                centerAngle: 0.6
             )
             .stroke(
                 LinearGradient(
@@ -110,8 +103,8 @@ struct LoadingView: View {
             
             CircularThread(
                 maxAmplitude: 6,
-                phase: phase,
-                centerAngle: centerAngle + 1.2
+                phase: 0,
+                centerAngle: 1.2
             )
             .stroke(
                 LinearGradient(
@@ -125,8 +118,8 @@ struct LoadingView: View {
             
             CircularThread(
                 maxAmplitude: 6,
-                phase: phase,
-                centerAngle: centerAngle + 0.9
+                phase: 0,
+                centerAngle: 0.9
             )
             .stroke(
                 LinearGradient(
@@ -138,17 +131,6 @@ struct LoadingView: View {
             )
             .frame(width: 40, height: 40)
             
-        }
-        .onAppear {
-            // Animate the wave pattern
-            withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
-                phase = 2 * .pi
-            }
-            
-            // Animate the center angle to move the amplitude bulge around
-            withAnimation(.linear(duration: 4).repeatForever(autoreverses: false)) {
-                centerAngle = 2 * .pi
-            }
         }
     }
 }
