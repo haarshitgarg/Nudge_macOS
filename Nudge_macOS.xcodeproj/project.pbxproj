@@ -11,7 +11,7 @@
 		E440021F2E069DC30027B8DB /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = E440021E2E069DC30027B8DB /* MCP */; };
 		E440023A2E06F2520027B8DB /* OpenAI in Frameworks */ = {isa = PBXBuildFile; productRef = E44002392E06F2520027B8DB /* OpenAI */; };
 		E4408A4F2E27D10700FB305F /* LangGraph in Frameworks */ = {isa = PBXBuildFile; productRef = E4408A4E2E27D10700FB305F /* LangGraph */; };
-		E4408A522E27E2E400FB305F /* LangGraph in Frameworks */ = {isa = PBXBuildFile; productRef = E4408A512E27E2E400FB305F /* LangGraph */; };
+		E4408B4F2E2FB7A600FB305F /* LangGraph in Frameworks */ = {isa = PBXBuildFile; productRef = E4408B4E2E2FB7A600FB305F /* LangGraph */; };
 		E46AAAFE2E1A7DD4000556E3 /* NudgeLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = E46AAAFD2E1A7DD4000556E3 /* NudgeLibrary */; };
 /* End PBXBuildFile section */
 
@@ -145,7 +145,7 @@
 				E4408A4F2E27D10700FB305F /* LangGraph in Frameworks */,
 				E440021F2E069DC30027B8DB /* MCP in Frameworks */,
 				E46AAAFE2E1A7DD4000556E3 /* NudgeLibrary in Frameworks */,
-				E4408A522E27E2E400FB305F /* LangGraph in Frameworks */,
+				E4408B4F2E2FB7A600FB305F /* LangGraph in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -276,7 +276,7 @@
 				E44002392E06F2520027B8DB /* OpenAI */,
 				E46AAAFD2E1A7DD4000556E3 /* NudgeLibrary */,
 				E4408A4E2E27D10700FB305F /* LangGraph */,
-				E4408A512E27E2E400FB305F /* LangGraph */,
+				E4408B4E2E2FB7A600FB305F /* LangGraph */,
 			);
 			productName = NavigationMCPClient;
 			productReference = E440020C2E069CE30027B8DB /* NavigationMCPClient.xpc */;
@@ -321,7 +321,7 @@
 				E440021D2E069DC30027B8DB /* XCRemoteSwiftPackageReference "swift-sdk" */,
 				E44002382E06F2520027B8DB /* XCRemoteSwiftPackageReference "OpenAI" */,
 				E46AAAFB2E1A7D80000556E3 /* XCRemoteSwiftPackageReference "Nudge-Server" */,
-				E4408A502E27E2E400FB305F /* XCRemoteSwiftPackageReference "LangGraph-Swift-fork" */,
+				E4408B4D2E2FB7A600FB305F /* XCRemoteSwiftPackageReference "LangGraph-Swift-fork" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E414C9A42E02E85D00DC57AA /* Products */;
@@ -778,11 +778,11 @@
 				version = 0.4.4;
 			};
 		};
-		E4408A502E27E2E400FB305F /* XCRemoteSwiftPackageReference "LangGraph-Swift-fork" */ = {
+		E4408B4D2E2FB7A600FB305F /* XCRemoteSwiftPackageReference "LangGraph-Swift-fork" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/haarshitgarg/LangGraph-Swift-fork";
 			requirement = {
-				branch = feat/adding_interrupt;
+				branch = feat/adding_external_way_to_pause;
 				kind = branch;
 			};
 		};
@@ -790,7 +790,7 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/haarshitgarg/Nudge-Server";
 			requirement = {
-				branch = release/v2.1.0;
+				branch = improvements/tool_improvements;
 				kind = branch;
 			};
 		};
@@ -811,9 +811,9 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = LangGraph;
 		};
-		E4408A512E27E2E400FB305F /* LangGraph */ = {
+		E4408B4E2E2FB7A600FB305F /* LangGraph */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = E4408A502E27E2E400FB305F /* XCRemoteSwiftPackageReference "LangGraph-Swift-fork" */;
+			package = E4408B4D2E2FB7A600FB305F /* XCRemoteSwiftPackageReference "LangGraph-Swift-fork" */;
 			productName = LangGraph;
 		};
 		E46AAAFD2E1A7DD4000556E3 /* NudgeLibrary */ = {

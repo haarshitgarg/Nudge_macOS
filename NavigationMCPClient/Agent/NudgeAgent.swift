@@ -25,6 +25,8 @@ struct NudgeAgent {
         "finish": END
     ]
     
+    private let saver = MemoryCheckpointSaver()
+
     struct agentResponse: Codable {
         let ask_user: String?
         let finished: String?
@@ -37,6 +39,7 @@ struct NudgeAgent {
     var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
     private let jsonEncoder: JSONEncoder = JSONEncoder()
     private let jsonDecoder: JSONDecoder = JSONDecoder()
+    
 
     // LLM Information
     var openAIClient: OpenAI
@@ -82,7 +85,7 @@ struct NudgeAgent {
         try self.workflow.addEdge(sourceId: "user_node", targetId: "llm_node")
         
         do {
-            self.agent = try self.workflow.compile()
+            self.agent = try self.workflow.compile(config: CompileConfig(checkpointSaver: self.saver))
             os_log("✅ Workflow compiled successfully", log: log, type: .info)
         } catch {
             os_log("❌ Workflow compilation failed: %@", log: log, type: .error, error.localizedDescription)
@@ -97,7 +100,7 @@ struct NudgeAgent {
         // Update anyother thing that is required
         os_log("contact_llm function called", log: log, type: .debug)
         os_log("Current thought process", log: log, type: .debug)
-        if let thought = Action.agent_outcome?.choices.first?.message.content?.data(using: .utf8) {
+        if let thought = Action.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) {
             let agent_response = try jsonDecoder.decode(agentResponse.self, from: thought)
             if let agent_thought = agent_response.agent_thought {
                 os_log("Agent thought process atm: %@", log: log, type: .debug, agent_thought)
@@ -165,7 +168,7 @@ struct NudgeAgent {
         }
 
         
-        guard let tool_calls = Action.agent_outcome?.choices.first?.message.toolCalls else {
+        guard let tool_calls = Action.agent_outcome?.last?.choices.first?.message.toolCalls else {
             os_log("Tool call list is empty", log: log, type: .error)
             return [
                 "no_of_errors": errors + 1,
@@ -264,7 +267,7 @@ struct NudgeAgent {
             throw NudgeError.agentStateVarMissing(description: "agent_outcome variable is missing")
         }
         
-        guard let message = agent_outcome.choices.first?.message.content?.data(using: .utf8) else {
+        guard let message = agent_outcome.last?.choices.first?.message.content?.data(using: .utf8) else {
             os_log("The content from llm is missing")
             self.serverDelegate?.agentFacedError(error: "Having trouble processing the response...")
             throw NudgeError.agentStateVarMissing(description: "agent_outcome has no content")
@@ -304,12 +307,12 @@ struct NudgeAgent {
             return "finish"
         }
         // Based on the agent outcome decide if we need to go to the tool_call or end it
-        if (Action.agent_outcome?.choices.first?.message.toolCalls?.count ?? 0 > 0) {
+        if (Action.agent_outcome?.last?.choices.first?.message.toolCalls?.count ?? 0 > 0) {
             os_log("Deciding to go to the node tool_call as tools are available", log: log, type: .debug)
             return "tool_call"
         }
         
-        guard let response = Action.agent_outcome?.choices.first?.message.content?.data(using: .utf8) else {
+        guard let response = Action.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) else {
             os_log("The agent outcome variable has no content to decide if we need to ask user or finish", log: log, type: .debug)
             self.serverDelegate?.agentFacedError(error: "Having trouble understanding the next step...")
             throw NudgeError.agentStateVarMissing(description: "The agent_outcome has no content")
@@ -467,7 +470,7 @@ struct NudgeAgent {
         }
         
         // Add previous agent outcome if available
-        if let message = state.agent_outcome?.choices.first?.message.content?.data(using: .utf8) {
+        if let message = state.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) {
             let agent_message = try self.jsonDecoder.decode(agentResponse.self, from: message)
             if let thought = agent_message.agent_thought {
                 contextComponents.append("## agent_thought\n\(thought)")
@@ -516,10 +519,10 @@ struct NudgeAgent {
     
     // MARK: Public functions
 
-    public mutating func invoke() async throws -> NudgeAgentState? {
+    public func invoke() async throws -> NudgeAgentState? {
         os_log("Running the Nudge Agent...", log: log, type: .debug)
         os_log("Current Context: %@", log: log, type: .debug, try self.buildContextFromState(self.state))
-        return try await self.agent?.invoke(inputs: self.state.data, verbose: true)
+        return try await self.agent?.invoke(.args(self.state.data))
     }
     
     public mutating func updateTools(_ tools: [ChatQuery.ChatCompletionToolParam]) {
@@ -529,7 +532,9 @@ struct NudgeAgent {
     }
     
     public mutating func interruptAgent() {
-        self.agent?.interrupt("Agent interrupted by user")
+        //self.agent?.interrupt("Agent interrupted by user")
+        self.agent?.pause()
+        os_log("Nudge Agent interrupted", log: log, type: .debug)
     }
 }
 

@@ -41,7 +41,6 @@ struct InputView: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 20))
                     .disabled(!chatViewModel.uiState.isInteractionEnabled)
-                    .opacity(chatViewModel.uiState == .input ? 1.0 : 0.0)
                     .onSubmit {sendAction()}
                 
                 // SPEECH BUTTON - Disappears instantly
@@ -52,7 +51,6 @@ struct InputView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!chatViewModel.uiState.isInteractionEnabled)
-                .opacity(chatViewModel.uiState == .input ? 1.0 : 0.0)
             }
             
             //.shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)

@@ -25,6 +25,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     private let jsonEncoder: JSONEncoder = JSONEncoder()
     private let jsonDecoder: JSONDecoder = JSONDecoder()
     private var nudgeAgent: NudgeAgent
+    private var checkpoints: [String: Any] = [:]
     
     // Callback client for two-way communication
     // Using strong reference to prevent deallocation during async operations
