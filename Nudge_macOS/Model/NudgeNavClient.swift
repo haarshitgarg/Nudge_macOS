@@ -74,7 +74,7 @@ class NudgeNavClient: NSObject {
             os_log("Error occurred while getting the proxy: %@", log: self.log, type: .error, error.localizedDescription)
         } as? NavigationMCPClientProtocol
         
-        proxy?.sendUserMessage(message)
+        proxy?.sendUserMessage(message, threadId: "Thread 1")
         
         os_log("Message sent to MCP client: %@", log: log, type: .debug, message)
     }

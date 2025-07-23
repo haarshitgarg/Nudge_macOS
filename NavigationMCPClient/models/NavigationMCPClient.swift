@@ -12,6 +12,7 @@ import os
 import OpenAI
 import System
 import NudgeLibrary
+import LangGraph
 
 /// This object implements the protocol which we have defined. It provides the actual behavior for the service. It is 'exported' by the service to make it available to the process hosting the service over an NSXPCConnection.
 class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
@@ -19,13 +20,15 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     private let log_llm = OSLog(subsystem: "Harshit.Nudge", category: "LLM")
     private let logger = Logger(label: "Harshit.Nudge")
     
+    // Agent Varibles
+    private var nudgeAgent: NudgeAgent
+    private var configs: [String: RunnableConfig] = [:]
+
     // MCP client variables
     private var serverDict: [MCPServer: ClientInfo] = [:]
     private var openAIClient: OpenAI? = nil
     private let jsonEncoder: JSONEncoder = JSONEncoder()
     private let jsonDecoder: JSONDecoder = JSONDecoder()
-    private var nudgeAgent: NudgeAgent
-    private var checkpoints: [String: Any] = [:]
     
     // Callback client for two-way communication
     // Using strong reference to prevent deallocation during async operations
@@ -47,31 +50,39 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         
     }
     
-    @objc func sendUserMessage(_ message: String) {
+    @objc func sendUserMessage(_ message: String, threadId: String = "default") {
         os_log("Received user message: %@ on instance: %@", log: log, type: .debug, message, String(describing: self))
         Task {
             do {
-                //try await communication_with_chatgpt(message)
                 self.callbackClient?.onLLMLoopStarted()
                 sleep(1)
-                // Set the user query in the agent state before invoking
-                let tools = self.getTools()
-                os_log("Updating agent with %d tools", log: log, type: .debug, tools.count)
-                self.nudgeAgent.updateTools(tools)
-                self.nudgeAgent.state.data["user_query"] = message
-                os_log("Set user query in agent state: %@", log: log, type: .debug, message)
                 
-                let final_state = try await self.nudgeAgent.invoke()
-                os_log("Agent invocation completed. Iterations: %{public}d, Errors: %{public}d, Tool calls result: %{public}@",
-                       log: log, type: .info, 
-                       final_state?.no_of_iteration ?? 0,
-                       final_state?.no_of_errors ?? 0,
-                       final_state?.tool_call_result ?? "None")
+                var runableConfig: RunnableConfig
+                var final_state: NudgeAgentState?
+                
+                if let config = configs[threadId] {
+                    os_log("Thread ID already exists: %@", log: log, type: .debug, threadId)
+                    runableConfig = config
+                } else {
+                    os_log("Thread ID %@ does not exist, creating new config", log: log, type: .debug, threadId)
+                    runableConfig = RunnableConfig(threadId: threadId)
+                    configs[threadId] = runableConfig
+                }
+                
+                self.nudgeAgent.state.data["user_query"] = message
+                final_state = try await self.nudgeAgent.invoke(config: runableConfig)
                 
                 if let chatHistory = final_state?.chat_history {
                     os_log("Chat history (%{public}d messages): %{public}@", log: log, type: .info, chatHistory.count, chatHistory.joined(separator: " | "))
                 }
+
+                os_log("Agent invocation completed. Iterations: %{public}d, Errors: %{public}d, Tool calls result: %{public}@",
+                       log: log, type: .info,
+                       final_state?.no_of_iteration ?? 0,
+                       final_state?.no_of_errors ?? 0,
+                       final_state?.tool_call_result ?? "None")
                 
+
                 self.callbackClient?.onLLMLoopFinished()
                 
             } catch {
@@ -163,6 +174,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         }
         
         os_log("MCP Client setup completed. Total tools loaded: %d", log: log, type: .info, getTools().count)
+        initialiseAgentState()
     }
     
     private func getTools() -> [ChatQuery.ChatCompletionToolParam] {
@@ -287,6 +299,12 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         client.chat_gpt_tools = chat_gpt_tools
     }
     
+    private func initialiseAgentState() {
+        let tools = self.getTools()
+        os_log("Updating agent with %d tools", log: log, type: .debug, tools.count)
+        self.nudgeAgent.updateTools(tools)
+    }
+    
     deinit {
         os_log("Deinitialising the xpc client", log: log, type: .debug)
     }
@@ -308,7 +326,7 @@ extension NavigationMCPClient: NudgeAgentDelegate {
     }
     
     func agentAskedUserForInput(question: String) {
-        self.callbackClient?.onLLMMessage(question)
+        self.callbackClient?.onUserMessage(question)
     }
 }
 

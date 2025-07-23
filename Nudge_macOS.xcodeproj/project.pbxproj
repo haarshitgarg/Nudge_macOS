@@ -790,7 +790,7 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/haarshitgarg/Nudge-Server";
 			requirement = {
-				branch = improvements/tool_improvements;
+				branch = main;
 				kind = branch;
 			};
 		};

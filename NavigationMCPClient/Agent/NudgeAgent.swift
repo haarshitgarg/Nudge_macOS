@@ -85,7 +85,7 @@ struct NudgeAgent {
         try self.workflow.addEdge(sourceId: "user_node", targetId: "llm_node")
         
         do {
-            self.agent = try self.workflow.compile(config: CompileConfig(checkpointSaver: self.saver))
+            self.agent = try self.workflow.compile(config: CompileConfig(checkpointSaver: self.saver, interruptionsBefore: ["user_node"]))
             os_log("✅ Workflow compiled successfully", log: log, type: .info)
         } catch {
             os_log("❌ Workflow compilation failed: %@", log: log, type: .error, error.localizedDescription)
@@ -317,7 +317,7 @@ struct NudgeAgent {
             self.serverDelegate?.agentFacedError(error: "Having trouble understanding the next step...")
             throw NudgeError.agentStateVarMissing(description: "The agent_outcome has no content")
         }
-        os_log("Response received will decide if we need to ask user or finish")
+        os_log("Response received will decide if we need to ask user or finish", log: log, type: .debug)
         let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: response)
         if message.ask_user != nil {
             return "ask_user"
@@ -519,10 +519,40 @@ struct NudgeAgent {
     
     // MARK: Public functions
 
-    public func invoke() async throws -> NudgeAgentState? {
+    public func invoke(config: RunnableConfig) async throws -> NudgeAgentState? {
         os_log("Running the Nudge Agent...", log: log, type: .debug)
         os_log("Current Context: %@", log: log, type: .debug, try self.buildContextFromState(self.state))
-        return try await self.agent?.invoke(.args(self.state.data))
+        return try await self.agent?.invoke(.args(self.state.data), config: config)
+    }
+    
+    public func resume(config: RunnableConfig, partialState: PartialAgentState) async throws -> NudgeAgentState? {
+        os_log("Resuming the Nudge Agent...", log: log, type: .debug)
+        guard let lastCheckpoint = self.saver.get(config: config) else {
+            throw NudgeError.noCheckpointFound
+        }
+        guard let agent = self.agent else {
+            throw NudgeError.agentNotInitialized(description: "Agent variable is nil")
+        }
+        var runnableConfig = config.with(update: {$0.checkpointId = lastCheckpoint.id})
+        runnableConfig = try await agent.updateState(config: runnableConfig, values: partialState)
+        return try await self.agent?.invoke(.resume, config: runnableConfig)
+    }
+    
+    public func getState(config: RunnableConfig) throws -> Checkpoint? {
+        os_log("Getting state for thread: %@", log: log, type: .debug, config.threadId ?? "Default thread ID")
+        return self.saver.get(config: config)
+    }
+    
+    public func updateState(config: RunnableConfig, state: [String: Any]) async throws -> RunnableConfig {
+        guard let agent = self.agent else {
+            os_log("Agent is not initialized, cannot update state", log: log, type: .error)
+            throw NudgeError.agentNotInitialized(description: "Agent variable is nil")
+        }
+        return try await agent.updateState(config: config, values: state)
+    }
+    
+    public func getLastCheckPoint(config: RunnableConfig) -> Checkpoint? {
+        return self.saver.get(config: config)
     }
     
     public mutating func updateTools(_ tools: [ChatQuery.ChatCompletionToolParam]) {
