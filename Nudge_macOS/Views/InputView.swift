@@ -26,7 +26,14 @@ struct InputView: View {
             let message = query
             query = ""
             Task {
-                do { try await self.chatViewModel.sendMessage(message)
+                do {
+                    if chatViewModel.uiState == .input {
+                        try await self.chatViewModel.sendMessage(message)
+                    }
+                    else if chatViewModel.uiState == .responding {
+                        try await self.chatViewModel.respondLLM(message)
+                    }
+
                 } catch { os_log("Failed to send message: %@", log: log, type: .fault, error.localizedDescription) }
             }
         }

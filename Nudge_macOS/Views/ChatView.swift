@@ -24,9 +24,11 @@ struct ChatView: View {
                             .foregroundColor(.accentColor)
                         InputView(textFieldText: "Type to Nudge")
                     }
-                    else {
+                    else if chatViewModel.uiState == .thinking {
                        // TODO: Add a thinking loop here. Probably my LoadingView
                         InputView(textFieldText: "Press Esc to cancel")
+                    } else {
+                        InputView(textFieldText: "Respond to Nudge..")
                     }
                 }
                 .padding(.horizontal, 16)

@@ -85,7 +85,7 @@ struct NudgeAgent {
         try self.workflow.addEdge(sourceId: "user_node", targetId: "llm_node")
         
         do {
-            self.agent = try self.workflow.compile(config: CompileConfig(checkpointSaver: self.saver, interruptionsBefore: ["user_node"]))
+            self.agent = try self.workflow.compile(config: CompileConfig(checkpointSaver: self.saver))
             os_log("✅ Workflow compiled successfully", log: log, type: .info)
         } catch {
             os_log("❌ Workflow compilation failed: %@", log: log, type: .error, error.localizedDescription)
@@ -261,6 +261,7 @@ struct NudgeAgent {
     
     func user_input(Action: NudgeAgentState) async throws -> PartialAgentState {
         // ASK user for its input
+        os_log("Asking for user input", log: log, type: .debug)
         guard let agent_outcome = Action.agent_outcome else {
             os_log("The agent_outcome variable not found in the state", log: log, type: .debug)
             self.serverDelegate?.agentFacedError(error: "Having trouble understanding the current state...")
@@ -551,8 +552,12 @@ struct NudgeAgent {
         return try await agent.updateState(config: config, values: state)
     }
     
-    public func getLastCheckPoint(config: RunnableConfig) -> Checkpoint? {
-        return self.saver.get(config: config)
+    public func updateConfig(config: RunnableConfig) throws -> RunnableConfig {
+        guard let checkpoint = self.saver.last(config: config) else {
+            os_log("No checkpoint found for the given config", log: log, type: .error)
+            throw NudgeError.noCheckpointFound
+        }
+        return config.with(update: {$0.checkpointId = checkpoint.id})
     }
     
     public mutating func updateTools(_ tools: [ChatQuery.ChatCompletionToolParam]) {

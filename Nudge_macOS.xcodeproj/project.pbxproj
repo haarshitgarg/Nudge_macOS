@@ -782,7 +782,7 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/haarshitgarg/LangGraph-Swift-fork";
 			requirement = {
-				branch = feat/adding_external_way_to_pause;
+				branch = improvement/pause_feature;
 				kind = branch;
 			};
 		};

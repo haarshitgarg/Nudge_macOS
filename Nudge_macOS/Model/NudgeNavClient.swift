@@ -15,6 +15,7 @@ protocol NudgeNavClientDelegate: AnyObject {
     func onLLMLoopFinished()
     func onToolCalled(toolName: String)
     func onLLMMessage(_ message: String)
+    func onUserMessage(_ message: String)
     func onError(_ error: String)
 }
 
@@ -77,6 +78,23 @@ class NudgeNavClient: NSObject {
         proxy?.sendUserMessage(message, threadId: "Thread 1")
         
         os_log("Message sent to MCP client: %@", log: log, type: .debug, message)
+    }
+    
+    public func respondToAgent(_ message: String) throws {
+        if connection == nil  {
+            os_log("Connection is not established", log: log, type: .error)
+            try self.connect()
+        }
+        guard let connection = connection else {
+            os_log("Connection is not established", log: log, type: .error)
+            throw NudgeError.connectionFailed
+        }
+        
+        let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+            os_log("Error occurred while getting the proxy: %@", log: self.log, type: .error, error.localizedDescription)
+        } as? NavigationMCPClientProtocol
+        
+        proxy?.respondLLMAgent(message, threadId: "Thread 1")
     }
     
     public func interruptAgent() throws {
@@ -171,6 +189,11 @@ extension NudgeNavClient: NavigationMCPClientCallbackProtocol {
     
     @objc func onUserMessage(_ message: String) {
         os_log("User message received: %@", log: log, type: .info, message)
+        
+        Task { @MainActor in
+            self.delegate?.onUserMessage(message)
+            
+        }
         
         // TODO: Handle request from LLM for user input
     }

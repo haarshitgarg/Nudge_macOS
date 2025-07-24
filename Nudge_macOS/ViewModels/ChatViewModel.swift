@@ -21,9 +21,9 @@ enum UITransitionState: String, CaseIterable {
     
     var isInteractionEnabled: Bool {
         switch self {
-        case .input:
+        case .input, .responding:
             return true
-        case .shrinking, .sparkles, .transitioning, .thinking, .responding, .expanding:
+        case .shrinking, .sparkles, .transitioning, .thinking, .expanding:
             return false
         }
     }
@@ -39,7 +39,6 @@ class ChatViewModel: ObservableObject {
     public let shortcutManager = ShortcutManager()
     public let navClient = NudgeNavClient()
     
-    @Published public var isLoading: Bool = false
     @Published public var llmLoopRunning: Bool = false
     @Published public var currentTool: String = ""
     @Published public var llmMessages: [String] = []
@@ -71,13 +70,14 @@ class ChatViewModel: ObservableObject {
     public func sendMessage(_ msg: String) async throws {
         guard uiState.isInteractionEnabled else { return }
         
-        isLoading = true
-        defer { isLoading = false }
-        
-        // Initiate transition to thinking state
-        //transitionToThinking()
-        
         try navClient.sendMessageToMCPClient(msg)
+    }
+    
+    public func respondLLM(_ msg: String) async throws {
+        // TODO: Send the response to the LLM
+        guard uiState.isInteractionEnabled else { return }
+        self.transitionToThinking()
+        try navClient.respondToAgent(msg)
     }
     
     public func terminateAgent() throws {
@@ -173,6 +173,10 @@ class ChatViewModel: ObservableObject {
     public func showErrorMessage(_ message: String) {
         showAgentBubble(message: message, type: .error)
     }
+    
+    public func showLLMquery(_ query: String) {
+        self.transitionToResponding()
+    }
 
     deinit {
         os_log("ChatViewModel is being deinitialized", log: log, type: .debug)
@@ -230,7 +234,10 @@ extension ChatViewModel: NudgeNavClientDelegate {
         os_log("LLM loop finished - updating UI", log: log, type: .debug)
         llmLoopRunning = false
         currentTool = ""
-        transitionToInput()
+        
+        if uiState == .thinking {
+            transitionToInput()
+        }
         
         // Show completion message
         showSuccessMessage("Task completed successfully!")
@@ -240,10 +247,10 @@ extension ChatViewModel: NudgeNavClientDelegate {
         os_log("Tool called: %@ - updating UI", log: log, type: .debug, toolName)
         currentTool = toolName
         
-        // Transition to responding state when tool is called
-        if uiState == .thinking {
-            transitionToResponding()
-        }
+//        // Transition to responding state when tool is called
+//        if uiState == .thinking {
+//            transitionToResponding()
+//        }
         
         // Show tool execution bubble
         showToolExecution(toolName)
@@ -255,6 +262,11 @@ extension ChatViewModel: NudgeNavClientDelegate {
         
         // Show agent thoughts in bubble
         showAgentThought(message)
+    }
+    
+    func onUserMessage(_ message: String) {
+        os_log("User message received: %@ - updating UI", log: log, type: .info, message)
+        self.transitionToResponding()
     }
     
     func onError(_ error: String) {

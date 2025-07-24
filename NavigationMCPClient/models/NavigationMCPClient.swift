@@ -92,6 +92,52 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         }
     }
     
+    @objc func respondLLMAgent(_ message: String, threadId: String) {
+        os_log("Received response for agent: %@ on thread ID: %@", log: log, type: .debug, message, threadId)
+        Task {
+            self.callbackClient?.onLLMLoopStarted()
+            sleep(1)
+            do {
+                var final_state: NudgeAgentState?
+                
+                guard var runableConfig = configs[threadId] else {
+                    os_log("No runnable config found for thread ID: %@", log: log, type: .error, threadId)
+                    throw NudgeError.noRunnableConfigFound
+                }
+                
+                runableConfig = try self.nudgeAgent.updateConfig(config: runableConfig)
+                
+                guard let checkpoint = try self.nudgeAgent.getState(config: runableConfig) else {
+                    os_log("No checkpoint found for thread ID: %@", log: log, type: .error, threadId)
+                    throw NudgeError.noCheckpointFound
+                }
+
+                self.nudgeAgent.state.data["user_query"] = message
+                // Print the checkpoint state for debugging
+                os_log("Checkpoint state: %{public}@", log: log, type: .debug, String(describing: checkpoint.state))
+                final_state = try await self.nudgeAgent.resume(config: runableConfig, partialState: checkpoint.state)
+                
+                if let chatHistory = final_state?.chat_history {
+                    os_log("Chat history (%{public}d messages): %{public}@", log: log, type: .info, chatHistory.count, chatHistory.joined(separator: " | "))
+                }
+                
+                os_log("Agent invocation completed. Iterations: %{public}d, Errors: %{public}d, Tool calls result: %{public}@",
+                       log: log, type: .info,
+                       final_state?.no_of_iteration ?? 0,
+                       final_state?.no_of_errors ?? 0,
+                       final_state?.tool_call_result ?? "None")
+                
+                
+                self.callbackClient?.onLLMLoopFinished()
+                
+            } catch {
+                os_log("Error while sending user response: %@", log: log, type: .error, error.localizedDescription)
+                callbackClient?.onError("Error processing response from user: \(error.localizedDescription)")
+            }
+        }
+        
+    }
+    
     @objc func setCallbackClient(_ client: NavigationMCPClientCallbackProtocol) {
         os_log("Setting callback client for two-way communication: %@", log: log, type: .debug, String(describing: client))
         self.callbackClient = client
@@ -99,9 +145,6 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         // Test the callback immediately
         os_log("Testing callback client with ping message", log: log, type: .debug)
         client.onLLMMessage("Callback client registered successfully")
-        
-        // Store a strong reference to prevent deallocation during async operations
-        // The weak reference might be getting lost during async tasks
     }
     
     @objc func interruptAgentExecution() {
@@ -122,6 +165,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         }
         
         // TODO: when I make it two way communication I might need to mark client as nil
+        self.callbackClient = nil
     }
     
     @objc func ping(_ message: String) {
@@ -326,7 +370,9 @@ extension NavigationMCPClient: NudgeAgentDelegate {
     }
     
     func agentAskedUserForInput(question: String) {
+        os_log("Agent asked user for input: %@", log: log, type: .debug, question)
         self.callbackClient?.onUserMessage(question)
+        self.nudgeAgent.agent?.pause()
     }
 }
 
