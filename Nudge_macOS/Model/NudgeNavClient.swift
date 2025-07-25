@@ -192,10 +192,7 @@ extension NudgeNavClient: NavigationMCPClientCallbackProtocol {
         
         Task { @MainActor in
             self.delegate?.onUserMessage(message)
-            
         }
-        
-        // TODO: Handle request from LLM for user input
     }
     
     @objc func onError(_ error: String) {

@@ -104,8 +104,6 @@ class ChatViewModel: ObservableObject {
     }
     
     public func transitionToResponding() {
-        guard uiState == .thinking else { return }
-        
         uiState = .responding
     }
     
@@ -235,7 +233,7 @@ extension ChatViewModel: NudgeNavClientDelegate {
         llmLoopRunning = false
         currentTool = ""
         
-        if uiState == .thinking {
+        if uiState == .thinking || uiState == .responding {
             transitionToInput()
         }
         

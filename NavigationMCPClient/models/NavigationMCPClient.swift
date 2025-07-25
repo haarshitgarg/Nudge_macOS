@@ -72,6 +72,29 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 self.nudgeAgent.state.data["user_query"] = message
                 final_state = try await self.nudgeAgent.invoke(config: runableConfig)
                 
+                // Print the final state for debugging
+                os_log("Final state after invocation: %{public}@", log: log, type: .debug, String(describing: final_state!.data))
+                guard let agent_response = final_state?.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) else {
+                    os_log("No agent response found in final state", log: log, type: .error)
+                    throw NudgeError.noAgentResponseFound
+                }
+                let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: agent_response)
+                
+                if message.ask_user != nil {
+                    os_log("Agent asked user for input: %@", log: log, type: .debug, message.ask_user!)
+                    self.callbackClient?.onUserMessage(message.ask_user!)
+                }
+                
+                else if message.finished != nil {
+                    os_log("Finishing because agent says: %@", log: log, type: .debug, message.finished!)
+                    self.callbackClient?.onLLMLoopFinished()
+                }
+                
+                else if message.agent_thought != nil {
+                    os_log("Some how the agent just thought, no tool call nothin. So returning it back to llm call", log: log, type: .debug)
+                    self.callbackClient?.onLLMLoopFinished()
+                }
+
                 if let chatHistory = final_state?.chat_history {
                     os_log("Chat history (%{public}d messages): %{public}@", log: log, type: .info, chatHistory.count, chatHistory.joined(separator: " | "))
                 }
@@ -81,9 +104,6 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                        final_state?.no_of_iteration ?? 0,
                        final_state?.no_of_errors ?? 0,
                        final_state?.tool_call_result ?? "None")
-                
-
-                self.callbackClient?.onLLMLoopFinished()
                 
             } catch {
                 os_log("Error while sending user message: %@", log: log, type: .error, error.localizedDescription)
@@ -105,28 +125,55 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                     throw NudgeError.noRunnableConfigFound
                 }
                 
-                runableConfig = try self.nudgeAgent.updateConfig(config: runableConfig)
                 
-                guard let checkpoint = try self.nudgeAgent.getState(config: runableConfig) else {
+                guard var checkpoint = try self.nudgeAgent.getState(config: runableConfig) else {
                     os_log("No checkpoint found for thread ID: %@", log: log, type: .error, threadId)
                     throw NudgeError.noCheckpointFound
                 }
+                
+                checkpoint = try checkpoint.updateState(values: ["chat_history": "user: \(message)"], channels: NudgeAgentState.schema)
+                runableConfig = runableConfig.with(update: {$0.checkpointId = checkpoint.id})
 
-                self.nudgeAgent.state.data["user_query"] = message
                 // Print the checkpoint state for debugging
                 os_log("Checkpoint state: %{public}@", log: log, type: .debug, String(describing: checkpoint.state))
                 final_state = try await self.nudgeAgent.resume(config: runableConfig, partialState: checkpoint.state)
                 
+                // Print the final state for debugging
+                os_log("Final state after invocation: %{public}@", log: log, type: .debug, String(describing: final_state!.data))
+                guard let agent_response = final_state?.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) else {
+                    os_log("No agent response found in final state", log: log, type: .error)
+                    throw NudgeError.noAgentResponseFound
+                }
+                let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: agent_response)
+                
+                if message.ask_user != nil {
+                    os_log("Agent asked user for input: %@", log: log, type: .debug, message.ask_user!)
+                    self.callbackClient?.onUserMessage(message.ask_user!)
+                }
+                
+                else if message.finished != nil {
+                    os_log("Finishing because agent says: %@", log: log, type: .debug, message.finished!)
+                    self.callbackClient?.onLLMLoopFinished()
+                }
+                
+                else if message.agent_thought != nil {
+                    os_log("Some how the agent just thought, no tool call nothin. So returning it back to llm call", log: log, type: .debug)
+                    self.callbackClient?.onLLMLoopFinished()
+                }
+
                 if let chatHistory = final_state?.chat_history {
                     os_log("Chat history (%{public}d messages): %{public}@", log: log, type: .info, chatHistory.count, chatHistory.joined(separator: " | "))
                 }
-                
+
                 os_log("Agent invocation completed. Iterations: %{public}d, Errors: %{public}d, Tool calls result: %{public}@",
                        log: log, type: .info,
                        final_state?.no_of_iteration ?? 0,
                        final_state?.no_of_errors ?? 0,
                        final_state?.tool_call_result ?? "None")
                 
+                if let chatHistory = final_state?.chat_history {
+                    os_log("Chat history (%{public}d messages): %{public}@", log: log, type: .info, chatHistory.count, chatHistory.joined(separator: " | "))
+                }
                 
                 self.callbackClient?.onLLMLoopFinished()
                 

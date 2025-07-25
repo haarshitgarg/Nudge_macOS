@@ -12,6 +12,13 @@ import OpenAI
 import OSLog
 import NudgeLibrary
 
+// Agent response struct
+struct agentResponse: Codable {
+    let ask_user: String?
+    let finished: String?
+    let agent_thought: String?
+}
+
 // The nudge agent to do everything required
 struct NudgeAgent {
     let log = OSLog(subsystem: "Harshit.Nudge", category: "Agent")
@@ -27,11 +34,6 @@ struct NudgeAgent {
     
     private let saver = MemoryCheckpointSaver()
 
-    struct agentResponse: Codable {
-        let ask_user: String?
-        let finished: String?
-        let agent_thought: String?
-    }
     
     var serverDelegate: NudgeAgentDelegate?
     
@@ -85,7 +87,7 @@ struct NudgeAgent {
         try self.workflow.addEdge(sourceId: "user_node", targetId: "llm_node")
         
         do {
-            self.agent = try self.workflow.compile(config: CompileConfig(checkpointSaver: self.saver))
+            self.agent = try self.workflow.compile(config: CompileConfig(checkpointSaver: self.saver, interruptionsBefore: ["user_node"]))
             os_log("✅ Workflow compiled successfully", log: log, type: .info)
         } catch {
             os_log("❌ Workflow compilation failed: %@", log: log, type: .error, error.localizedDescription)
@@ -280,13 +282,7 @@ struct NudgeAgent {
             self.serverDelegate?.agentAskedUserForInput(question: response.ask_user!)
         }
         
-        return [
-            "chat_history":
-                    [
-                        "agent: \(response.ask_user ?? "Agent asked user")",
-                        "user: Do what you think is best. You have complete freedom to choose"
-                    ]
-        ]
+        return [:]
     }
     
     // Checks if we need to end the loop or call some other tool
@@ -550,14 +546,6 @@ struct NudgeAgent {
             throw NudgeError.agentNotInitialized(description: "Agent variable is nil")
         }
         return try await agent.updateState(config: config, values: state)
-    }
-    
-    public func updateConfig(config: RunnableConfig) throws -> RunnableConfig {
-        guard let checkpoint = self.saver.last(config: config) else {
-            os_log("No checkpoint found for the given config", log: log, type: .error)
-            throw NudgeError.noCheckpointFound
-        }
-        return config.with(update: {$0.checkpointId = checkpoint.id})
     }
     
     public mutating func updateTools(_ tools: [ChatQuery.ChatCompletionToolParam]) {

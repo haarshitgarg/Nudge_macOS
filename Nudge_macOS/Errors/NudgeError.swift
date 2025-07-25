@@ -23,6 +23,7 @@ public enum NudgeError: Error, Sendable, LocalizedError {
     
     case noCheckpointFound
     case noRunnableConfigFound
+    case noAgentResponseFound
     
     public var errorDescription: String? {
         switch self {
@@ -54,6 +55,8 @@ public enum NudgeError: Error, Sendable, LocalizedError {
             return "No checkpoint found for the agent"
         case .noRunnableConfigFound:
             return "No runnable configuration found for the agent"
+        case .noAgentResponseFound:
+            return "No response found from the agent"
         }
     }
 }
