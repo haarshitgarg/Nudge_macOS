@@ -15,6 +15,10 @@ struct ChatView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // User Action Prompt - appears above input
+            UserActionPromptContainerView(chatViewModel: chatViewModel)
+                .frame(maxWidth: 350, alignment: .center)
+            
             // Main container with consistent height
             ZStack(alignment: .topLeading) {
                 HStack {

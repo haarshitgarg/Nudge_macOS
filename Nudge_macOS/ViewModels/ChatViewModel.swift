@@ -56,6 +56,11 @@ class ChatViewModel: ObservableObject {
     @Published public var agentBubbleMessage: AgentBubbleMessage?
     private var bubbleTimer: Timer?
     
+    // MARK: - User Action Prompt State Management
+    @Published public var showUserActionPrompt: Bool = false
+    @Published public var userActionMessage: String?
+    private var actionPromptTimer: Timer?
+    
     
     
     private init() {
@@ -175,6 +180,34 @@ class ChatViewModel: ObservableObject {
     public func showLLMquery(_ query: String) {
         self.transitionToResponding()
     }
+    
+    // MARK: - User Action Prompt Management
+    public func showUserActionPrompt(message: String) {
+        // Cancel any existing timer
+        actionPromptTimer?.invalidate()
+        
+        // Update prompt content
+        userActionMessage = message
+        showUserActionPrompt = true
+        
+        // Auto-dismiss after 12 seconds
+        actionPromptTimer = Timer.scheduledTimer(withTimeInterval: 12.0, repeats: false) { _ in
+            Task {
+                await self.hideUserActionPrompt()
+            }
+        }
+    }
+    
+    public func hideUserActionPrompt() {
+        showUserActionPrompt = false
+        actionPromptTimer?.invalidate()
+        actionPromptTimer = nil
+        
+        // Clear message after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            self.userActionMessage = nil
+        }
+    }
 
     deinit {
         os_log("ChatViewModel is being deinitialized", log: log, type: .debug)
@@ -188,6 +221,10 @@ class ChatViewModel: ObservableObject {
         // Cancel bubble timer
         bubbleTimer?.invalidate()
         bubbleTimer = nil
+        
+        // Cancel action prompt timer
+        actionPromptTimer?.invalidate()
+        actionPromptTimer = nil
         
         // Disconnect XPC clients (these are not MainActor isolated)
         Task.detached {
@@ -265,6 +302,9 @@ extension ChatViewModel: NudgeNavClientDelegate {
     func onUserMessage(_ message: String) {
         os_log("User message received: %@ - updating UI", log: log, type: .info, message)
         self.transitionToResponding()
+        
+        // Show user action prompt
+        showUserActionPrompt(message: message)
     }
     
     func onError(_ error: String) {
