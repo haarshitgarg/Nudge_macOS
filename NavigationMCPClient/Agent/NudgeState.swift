@@ -82,4 +82,8 @@ struct NudgeAgentState: AgentState {
         value("chat_history")
     }
     
+    var temp_user_response: String? {
+        value("temp_user_response")
+    }
+    
 }

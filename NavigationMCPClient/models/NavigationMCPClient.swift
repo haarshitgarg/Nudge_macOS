@@ -70,7 +70,12 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 }
                 
                 self.nudgeAgent.state.data["user_query"] = message
-                final_state = try await self.nudgeAgent.invoke(config: runableConfig)
+                let initVal: ( lastState: NudgeAgentState?, nodes: [String]) = (nil, [])
+                let result = try await self.nudgeAgent.agent?.stream(.args(self.nudgeAgent.state.data), config: runableConfig).reduce(initVal, { partialResult, output in
+                    return (output.state, partialResult.1 + [output.node])
+                })
+                
+                final_state = result?.lastState
                 
                 // Print the final state for debugging
                 os_log("Final state after invocation: %{public}@", log: log, type: .debug, String(describing: final_state!.data))
@@ -126,20 +131,42 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 }
                 
                 
-                guard var checkpoint = try self.nudgeAgent.getState(config: runableConfig) else {
+                guard let checkpoint = try self.nudgeAgent.getState(config: runableConfig) else {
                     os_log("No checkpoint found for thread ID: %@", log: log, type: .error, threadId)
                     throw NudgeError.noCheckpointFound
                 }
                 
-                checkpoint = try checkpoint.updateState(values: ["chat_history": "user: \(message)"], channels: NudgeAgentState.schema)
+                
+                //checkpoint = try checkpoint.updateState(values: ["temp_user_response": "\(message)"], channels: NudgeAgentState.schema)
                 runableConfig = runableConfig.with(update: {$0.checkpointId = checkpoint.id})
+                runableConfig = try await self.nudgeAgent.updateState(config: runableConfig, state: ["temp_user_response": "\(message)"])
 
-                // Print the checkpoint state for debugging
-                os_log("Checkpoint state: %{public}@", log: log, type: .debug, String(describing: checkpoint.state))
-                final_state = try await self.nudgeAgent.resume(config: runableConfig, partialState: checkpoint.state)
+                // Print the checkpoint next node and current node using this
+                os_log("Checkpoint ID: %@, Next Node: %@, Current Node: %@", log: log, type: .debug, checkpoint.id as CVarArg, checkpoint.nextNodeId, checkpoint.nodeId)
+                // Print the agent_outcome variable
+                os_log("Checkpoint agent outcome: %@", log: log, type: .debug, String(describing: checkpoint.state["agent_outcome"]))
+                
+                let initVal: ( lastState: NudgeAgentState?, nodes: [String]) = (nil, [])
+                let result = try await self.nudgeAgent.agent?.stream(.resume, config: runableConfig).reduce(initVal, { partialResult, output in
+                    return (output.state, partialResult.1 + [output.node])
+                })
+                
+                final_state = result?.lastState
+                
+                //final_state = try await self.nudgeAgent.resume(config: runableConfig, partialState: checkpoint.state)
                 
                 // Print the final state for debugging
-                os_log("Final state after invocation: %{public}@", log: log, type: .debug, String(describing: final_state!.data))
+                //os_log("Final state after invocation: %{public}@", log: log, type: .debug, String(describing: final_state!.data))
+                
+                // Print some necessary final state info line by line
+                os_log("Final state after invocation: ", log: log, type: .debug)
+                os_log("  - No of iterations: %d", log: log, type: .debug, final_state?.no_of_iteration ?? 0)
+                os_log("  - No of errors: %d", log: log, type: .debug, final_state?.no_of_errors ?? 0)
+                os_log("  - Tool call result: %@", log: log, type: .debug, final_state?.tool_call_result ?? "None")
+                os_log("  - Agent outcome: %@", log: log, type: .debug, String(describing: final_state?.agent_outcome))
+                os_log("  - Chat history: %@", log: log, type: .debug, String(describing: final_state?.chat_history))
+                
+                
                 guard let agent_response = final_state?.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) else {
                     os_log("No agent response found in final state", log: log, type: .error)
                     throw NudgeError.noAgentResponseFound
@@ -170,12 +197,6 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                        final_state?.no_of_iteration ?? 0,
                        final_state?.no_of_errors ?? 0,
                        final_state?.tool_call_result ?? "None")
-                
-                if let chatHistory = final_state?.chat_history {
-                    os_log("Chat history (%{public}d messages): %{public}@", log: log, type: .info, chatHistory.count, chatHistory.joined(separator: " | "))
-                }
-                
-                self.callbackClient?.onLLMLoopFinished()
                 
             } catch {
                 os_log("Error while sending user response: %@", log: log, type: .error, error.localizedDescription)
@@ -417,7 +438,6 @@ extension NavigationMCPClient: NudgeAgentDelegate {
     }
     
     func agentAskedUserForInput(question: String) {
-        os_log("Agent asked user for input: %@", log: log, type: .debug, question)
         self.callbackClient?.onUserMessage(question)
         self.nudgeAgent.agent?.pause()
     }

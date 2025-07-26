@@ -264,6 +264,10 @@ struct NudgeAgent {
     func user_input(Action: NudgeAgentState) async throws -> PartialAgentState {
         // ASK user for its input
         os_log("Asking for user input", log: log, type: .debug)
+        // Print action in the log
+        os_log("Printing the action in the log", log: log, type: .debug)
+        os_log("%@", log: log, type: .debug, String(describing: Action.agent_outcome))
+        
         guard let agent_outcome = Action.agent_outcome else {
             os_log("The agent_outcome variable not found in the state", log: log, type: .debug)
             self.serverDelegate?.agentFacedError(error: "Having trouble understanding the current state...")
@@ -282,7 +286,16 @@ struct NudgeAgent {
             self.serverDelegate?.agentAskedUserForInput(question: response.ask_user!)
         }
         
-        return [:]
+        guard let userResponse = Action.temp_user_response else {
+            os_log("The user response variable not found in the state", log: log, type: .debug)
+            self.serverDelegate?.agentFacedError(error: "Having trouble tracking user response...")
+            throw NudgeError.agentStateVarMissing(description: "temp_user_response variable is missing")
+        }
+        
+        return [
+            "chat_history": ["agent: \(response.ask_user ?? "No question asked")", "user: \(userResponse)"]
+            ]
+            
     }
     
     // Checks if we need to end the loop or call some other tool
@@ -521,6 +534,18 @@ struct NudgeAgent {
         os_log("Current Context: %@", log: log, type: .debug, try self.buildContextFromState(self.state))
         return try await self.agent?.invoke(.args(self.state.data), config: config)
     }
+    
+//    public mutating func stream(message: String, config: RunnableConfig) async throws -> NudgeAgentState? {
+//        self.state.data["user_query"] = message
+//        let initVal: ( lastState: NudgeAgentState?, nodes: [String]) = (nil, [])
+//        guard let agent = self.agent else {
+//            throw NudgeError.agentNotInitialized(description: "Agent variable is nil")
+//        }
+//        
+//        return try await agent.stream(.args(self.state.data), config: config).reduce(initVal, { partialResult, output in
+//            return (output.state, partialResult.1 + [output.node])
+//        })
+//    }
     
     public func resume(config: RunnableConfig, partialState: PartialAgentState) async throws -> NudgeAgentState? {
         os_log("Resuming the Nudge Agent...", log: log, type: .debug)
