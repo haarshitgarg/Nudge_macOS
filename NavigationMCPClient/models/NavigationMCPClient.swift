@@ -79,7 +79,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                     os_log("No agent response found in final state", log: log, type: .error)
                     throw NudgeError.noAgentResponseFound
                 }
-                let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: agent_response)
+                let message: AgentResponse = try JSONDecoder().decode(AgentResponse.self, from: agent_response)
                 
                 if message.ask_user != nil {
                     os_log("Agent requesting user input", log: log, type: .info)
@@ -143,7 +143,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                     os_log("No agent response found in final state", log: log, type: .error)
                     throw NudgeError.noAgentResponseFound
                 }
-                let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: agent_response)
+                let message: AgentResponse = try JSONDecoder().decode(AgentResponse.self, from: agent_response)
                 
                 if message.ask_user != nil {
                     os_log("Agent requesting user input", log: log, type: .info)
@@ -293,7 +293,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             
                 
             // Iterate through each server configuration
-            for (index, serverConfig) in serverConfigs.enumerated() {
+            for (_, serverConfig) in serverConfigs.enumerated() {
                 
                 let server = MCPServer(
                     name: serverConfig.name,

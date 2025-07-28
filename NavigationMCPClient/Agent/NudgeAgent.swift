@@ -12,12 +12,7 @@ import OpenAI
 import OSLog
 import NudgeLibrary
 
-// Agent response struct
-struct agentResponse: Codable {
-    let ask_user: String?
-    let finished: String?
-    let agent_thought: String?
-}
+
 
 // The nudge agent to do everything required
 struct NudgeAgent {
@@ -98,7 +93,7 @@ struct NudgeAgent {
         // Fill the agent outcome
         // Update anyother thing that is required
         if let thought = Action.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) {
-            let agent_response = try jsonDecoder.decode(agentResponse.self, from: thought)
+            let agent_response = try jsonDecoder.decode(AgentResponse.self, from: thought)
             if let agent_thought = agent_response.agent_thought {
                 self.serverDelegate?.agentRespondedWithThought(thought: agent_thought)
             } else {
@@ -256,7 +251,7 @@ struct NudgeAgent {
             throw NudgeError.agentStateVarMissing(description: "agent_outcome has no content")
         }
         
-        let response: agentResponse = try self.jsonDecoder.decode(agentResponse.self, from: message)
+        let response: AgentResponse = try self.jsonDecoder.decode(AgentResponse.self, from: message)
         
         guard let userResponse = Action.temp_user_response else {
             self.serverDelegate?.agentFacedError(error: "Having trouble tracking user response...")
@@ -291,7 +286,7 @@ struct NudgeAgent {
             self.serverDelegate?.agentFacedError(error: "Having trouble understanding the next step...")
             throw NudgeError.agentStateVarMissing(description: "The agent_outcome has no content")
         }
-        let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: response)
+        let message: AgentResponse = try JSONDecoder().decode(AgentResponse.self, from: response)
         if message.ask_user != nil {
             os_log("Agent needs user input", log: log, type: .info)
             return "ask_user"
@@ -437,7 +432,7 @@ struct NudgeAgent {
         
         // Add previous agent outcome if available
         if let message = state.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) {
-            let agent_message = try self.jsonDecoder.decode(agentResponse.self, from: message)
+            let agent_message = try self.jsonDecoder.decode(AgentResponse.self, from: message)
             if let thought = agent_message.agent_thought {
                 contextComponents.append("## agent_thought\n\(thought)")
             }
@@ -485,9 +480,9 @@ struct NudgeAgent {
     
     // MARK: Public functions
 
-    public func invoke(config: RunnableConfig) async throws -> NudgeAgentState? {
-        return try await self.agent?.invoke(.args(self.state.data), config: config)
-    }
+//    public func invoke(config: RunnableConfig) async throws -> NudgeAgentState? {
+//        return try await self.agent?.invoke(.args(self.state.data), config: config)
+//    }
     
 //    public mutating func stream(message: String, config: RunnableConfig) async throws -> NudgeAgentState? {
 //        self.state.data["user_query"] = message
@@ -501,17 +496,17 @@ struct NudgeAgent {
 //        })
 //    }
     
-    public func resume(config: RunnableConfig, partialState: PartialAgentState) async throws -> NudgeAgentState? {
-        guard let lastCheckpoint = self.saver.get(config: config) else {
-            throw NudgeError.noCheckpointFound
-        }
-        guard let agent = self.agent else {
-            throw NudgeError.agentNotInitialized(description: "Agent variable is nil")
-        }
-        var runnableConfig = config.with(update: {$0.checkpointId = lastCheckpoint.id})
-        runnableConfig = try await agent.updateState(config: runnableConfig, values: partialState)
-        return try await self.agent?.invoke(.resume, config: runnableConfig)
-    }
+//    public func resume(config: RunnableConfig, partialState: PartialAgentState) async throws -> NudgeAgentState? {
+//        guard let lastCheckpoint = self.saver.get(config: config) else {
+//            throw NudgeError.noCheckpointFound
+//        }
+//        guard let agent = self.agent else {
+//            throw NudgeError.agentNotInitialized(description: "Agent variable is nil")
+//        }
+//        var runnableConfig = config.with(update: {$0.checkpointId = lastCheckpoint.id})
+//        runnableConfig = try await agent.updateState(config: runnableConfig, values: partialState)
+//        return try await self.agent?.invoke(.resume, config: runnableConfig)
+//    }
     
     public func getState(config: RunnableConfig) throws -> Checkpoint? {
         return self.saver.get(config: config)
