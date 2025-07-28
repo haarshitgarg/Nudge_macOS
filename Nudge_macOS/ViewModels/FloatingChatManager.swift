@@ -17,7 +17,6 @@ class FloatingChatManager: ObservableObject {
     private let log = OSLog(subsystem: "Harshit.Nudge", category: "FloatingChatManager")
     
     init() {
-        os_log("FloatingChatManager initialized", log: log, type: .debug)
         
         // Listen for dismiss notifications from the panel
         NotificationCenter.default.addObserver(
@@ -29,7 +28,6 @@ class FloatingChatManager: ObservableObject {
     }
     
     func showChat() {
-        os_log("Showing chat panel", log: log, type: .debug)
         
         if panel == nil {
             let contentView = ChatView()
@@ -53,7 +51,6 @@ class FloatingChatManager: ObservableObject {
     }
     
     func hideChat() {
-        os_log("Hiding chat panel", log: log, type: .debug)
         isVisible = false
         panel?.orderOut(nil)
     }
@@ -68,9 +65,7 @@ class FloatingChatManager: ObservableObject {
     
     @MainActor
     @objc private func handleEscKeyEvent() {
-        os_log("Received escape key, hiding chat", log: log, type: .debug)
         if ChatViewModel.shared.uiState != .input {
-            os_log("UI state is not input, hence terminating the agent execution", log: log, type: .debug)
             do {
                 try ChatViewModel.shared.terminateAgent()
             } catch {
@@ -82,7 +77,6 @@ class FloatingChatManager: ObservableObject {
     }
     
     func cleanup() {
-        os_log("Cleaning up panel resources", log: log, type: .debug)
         
         // Remove notification observers
         NotificationCenter.default.removeObserver(self)
@@ -94,7 +88,6 @@ class FloatingChatManager: ObservableObject {
     }
     
     deinit {
-        os_log("FloatingChatManager is being deinitialized", log: log, type: .debug)
         // Note: Cannot call @MainActor cleanup() from deinit
         // Cleanup should be called explicitly before deinitialization
     }

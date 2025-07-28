@@ -15,6 +15,10 @@ struct ChatView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // User Action Prompt - appears above input
+            UserActionPromptContainerView(chatViewModel: chatViewModel)
+                .frame(maxWidth: 350, alignment: .center)
+            
             // Main container with consistent height
             ZStack(alignment: .topLeading) {
                 HStack {
@@ -24,9 +28,11 @@ struct ChatView: View {
                             .foregroundColor(.accentColor)
                         InputView(textFieldText: "Type to Nudge")
                     }
-                    else {
+                    else if chatViewModel.uiState == .thinking {
                        // TODO: Add a thinking loop here. Probably my LoadingView
                         InputView(textFieldText: "Press Esc to cancel")
+                    } else {
+                        InputView(textFieldText: "Respond to Nudge..")
                     }
                 }
                 .padding(.horizontal, 16)

@@ -6,7 +6,7 @@
 //
 import Foundation
 
-public enum NudgeError: Error, Sendable {
+public enum NudgeError: Error, Sendable, LocalizedError {
     case connectionFailed
     case invalidResponse
     case cannotGetTools
@@ -21,7 +21,11 @@ public enum NudgeError: Error, Sendable {
     case agentStateVarMissing(description: String)
     case toolcalllistempty
     
-    public var localizedDescription: String {
+    case noCheckpointFound
+    case noRunnableConfigFound
+    case noAgentResponseFound
+    
+    public var errorDescription: String? {
         switch self {
         case .connectionFailed:
             return "Failed to connect to the Nudge service."
@@ -47,6 +51,12 @@ public enum NudgeError: Error, Sendable {
             return "Agent state variable is missing: \(description)"
         case .toolcalllistempty:
             return "Tool call list is empty"
+        case .noCheckpointFound:
+            return "No checkpoint found for the agent"
+        case .noRunnableConfigFound:
+            return "No runnable configuration found for the agent"
+        case .noAgentResponseFound:
+            return "No response found from the agent"
         }
     }
 }

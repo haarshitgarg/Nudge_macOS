@@ -73,3 +73,12 @@ struct ClientInfo {
     }
 }
 
+// MARK: - Agent related structures
+
+// Agent response struct
+struct AgentResponse: Codable {
+    let ask_user: String?
+    let finished: String?
+    let agent_thought: String?
+}
+

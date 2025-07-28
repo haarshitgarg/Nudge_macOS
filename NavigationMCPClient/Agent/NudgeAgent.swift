@@ -12,6 +12,8 @@ import OpenAI
 import OSLog
 import NudgeLibrary
 
+
+
 // The nudge agent to do everything required
 struct NudgeAgent {
     let log = OSLog(subsystem: "Harshit.Nudge", category: "Agent")
@@ -25,11 +27,8 @@ struct NudgeAgent {
         "finish": END
     ]
     
-    struct agentResponse: Codable {
-        let ask_user: String?
-        let finished: String?
-        let agent_thought: String?
-    }
+    private let saver = MemoryCheckpointSaver()
+
     
     var serverDelegate: NudgeAgentDelegate?
     
@@ -37,6 +36,7 @@ struct NudgeAgent {
     var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
     private let jsonEncoder: JSONEncoder = JSONEncoder()
     private let jsonDecoder: JSONDecoder = JSONDecoder()
+    
 
     // LLM Information
     var openAIClient: OpenAI
@@ -49,22 +49,19 @@ struct NudgeAgent {
         // Been thinking about a .md file for how the agent should behave or something like this
         
         // TODO: As I don't have any custom channels I have this basic workflow
-        os_log("Initializing Nudge Agent", log: log, type: .debug)
         self.workflow = StateGraph(channels: NudgeAgentState.schema) { state in
             return NudgeAgentState(state)
         }
         // Initialise open AI
-        os_log("Initializing OpenAI client with API key", log: log, type: .debug)
         self.openAIClient = OpenAI(apiToken: Secrets.open_ai_key)
 
         // Initialise State
         self.state = NudgeAgentState([:])
         try self.initialiseAgentState()
-        os_log("Initialization Success", log: log, type: .debug)
+        os_log("Nudge Agent initialized successfully", log: log, type: .info)
     }
     
     mutating func defineWorkFlow() throws {
-        os_log("Defining the workflow of the agent", log: log, type: .debug)
         try self.workflow.addNode("llm_node", action: contact_llm)
         try self.workflow.addNode("tool_node", action: tool_call)
         try self.workflow.addNode("user_node", action: user_input)
@@ -82,7 +79,7 @@ struct NudgeAgent {
         try self.workflow.addEdge(sourceId: "user_node", targetId: "llm_node")
         
         do {
-            self.agent = try self.workflow.compile()
+            self.agent = try self.workflow.compile(config: CompileConfig(checkpointSaver: self.saver, interruptionsBefore: ["user_node"]))
             os_log("✅ Workflow compiled successfully", log: log, type: .info)
         } catch {
             os_log("❌ Workflow compilation failed: %@", log: log, type: .error, error.localizedDescription)
@@ -95,15 +92,11 @@ struct NudgeAgent {
         // Call LLM here.
         // Fill the agent outcome
         // Update anyother thing that is required
-        os_log("contact_llm function called", log: log, type: .debug)
-        os_log("Current thought process", log: log, type: .debug)
-        if let thought = Action.agent_outcome?.choices.first?.message.content?.data(using: .utf8) {
-            let agent_response = try jsonDecoder.decode(agentResponse.self, from: thought)
+        if let thought = Action.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) {
+            let agent_response = try jsonDecoder.decode(AgentResponse.self, from: thought)
             if let agent_thought = agent_response.agent_thought {
-                os_log("Agent thought process atm: %@", log: log, type: .debug, agent_thought)
                 self.serverDelegate?.agentRespondedWithThought(thought: agent_thought)
             } else {
-                os_log("Agent thought process atm: %@", log: log, type: .debug, "NO THOUGHT")
             }
         }
         
@@ -133,7 +126,6 @@ struct NudgeAgent {
         
         // Get tools from the current state
         let availableTools = Action.available_tools ?? []
-        os_log("No of tools available for the agent: %d", log: log, type: .debug, availableTools.count)
         let llm_query = ChatQuery(
             messages: messages,
             model: "gpt-4.1",
@@ -151,21 +143,15 @@ struct NudgeAgent {
     
     func tool_call(Action: NudgeAgentState) async throws -> PartialAgentState {
         // Based on agent outcome call a tool that is required
-        os_log("tool_call function called", log: log, type: .debug)
         
-        guard let errors = Action.no_of_errors else {
-            os_log("The errors variable not found in the state", log: log, type: .debug)
-            self.serverDelegate?.agentFacedError(error: "Having trouble tracking errors...")
-            throw NudgeError.agentStateVarMissing(description: "no_of_errors var missing")
-        }
-        guard let iterations = Action.no_of_iteration else {
-            os_log("The iterations variable not found in the state", log: log, type: .debug)
-            self.serverDelegate?.agentFacedError(error: "Having trouble tracking progress...")
-            throw NudgeError.agentStateVarMissing(description: "no_of_iteration var missing")
+        guard let errors = Action.no_of_errors,
+              let iterations = Action.no_of_iteration else {
+            self.serverDelegate?.agentFacedError(error: "Having trouble tracking execution state...")
+            throw NudgeError.agentStateVarMissing(description: "Missing iteration or error tracking variables")
         }
 
         
-        guard let tool_calls = Action.agent_outcome?.choices.first?.message.toolCalls else {
+        guard let tool_calls = Action.agent_outcome?.last?.choices.first?.message.toolCalls else {
             os_log("Tool call list is empty", log: log, type: .error)
             return [
                 "no_of_errors": errors + 1,
@@ -182,20 +168,18 @@ struct NudgeAgent {
         }
         
         let function_name = curr_tool.function.name
+        os_log("Executing tool: %@", log: log, type: .info, function_name)
         self.serverDelegate?.agentCalledTool(toolName: function_name)
-        os_log("Tool call function name: %@", log: log, type: .debug, function_name)
         guard let argumentsData = curr_tool.function.arguments.data(using: .utf8) else {
             os_log("Failed to convert arguments to Data", log: log, type: .error)
             self.serverDelegate?.agentFacedError(error: "Arguments for the tool call are not in correct format")
             throw NudgeError.cannotParseToolArguments
         }
         let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
-        os_log("Decoded arguments: %@", log: log, type: .debug, String(describing: arguemnt_dict))
         
         do {
             switch (curr_tool.function.name) {
             case "get_ui_elements":
-                os_log("Calling get_ui_elemets", log: log, type: .debug)
                 let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.getUIElements(arguments: arguemnt_dict)
                 let server_response = formatUIElementsToString(ui_element_tree)
                 return [
@@ -204,7 +188,6 @@ struct NudgeAgent {
                     "no_of_iteration": iterations + 1
                 ]
             case "click_element_by_id":
-                os_log("Calling click_element_by_id", log: log, type: .debug)
                 let result = try await NudgeLibrary.shared.clickElement(arguments: arguemnt_dict)
                 let uiTree = result.uiTree
                 if !result.uiTree.isEmpty {
@@ -221,7 +204,6 @@ struct NudgeAgent {
                     ]
                 }
             case "update_ui_element_tree":
-                os_log("Calling update_ui_element_tree", log: log, type: .debug)
                 let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.updateUIElementTree(arguments: arguemnt_dict)
                 let server_response = formatUIElementsToString(ui_element_tree)
                 return [
@@ -230,7 +212,6 @@ struct NudgeAgent {
                     "no_of_iteration": iterations + 1
                 ]
             case "set_text_in_element" :
-                os_log("Calling set_text_in_element", log: log, type: .debug)
                 let ui_element_tree = try await NudgeLibrary.shared.setTextInElement(arguments: arguemnt_dict)
                 let server_response = formatUIElementsToString(ui_element_tree.uiTree)
                 return [
@@ -258,78 +239,66 @@ struct NudgeAgent {
     
     func user_input(Action: NudgeAgentState) async throws -> PartialAgentState {
         // ASK user for its input
+        
         guard let agent_outcome = Action.agent_outcome else {
-            os_log("The agent_outcome variable not found in the state", log: log, type: .debug)
             self.serverDelegate?.agentFacedError(error: "Having trouble understanding the current state...")
             throw NudgeError.agentStateVarMissing(description: "agent_outcome variable is missing")
         }
         
-        guard let message = agent_outcome.choices.first?.message.content?.data(using: .utf8) else {
+        guard let message = agent_outcome.last?.choices.first?.message.content?.data(using: .utf8) else {
             os_log("The content from llm is missing")
             self.serverDelegate?.agentFacedError(error: "Having trouble processing the response...")
             throw NudgeError.agentStateVarMissing(description: "agent_outcome has no content")
         }
         
-        let response: agentResponse = try self.jsonDecoder.decode(agentResponse.self, from: message)
-        if response.ask_user != nil {
-            os_log("Asking user for information", log: log, type: .debug)
-            self.serverDelegate?.agentAskedUserForInput(question: response.ask_user!)
+        let response: AgentResponse = try self.jsonDecoder.decode(AgentResponse.self, from: message)
+        
+        guard let userResponse = Action.temp_user_response else {
+            self.serverDelegate?.agentFacedError(error: "Having trouble tracking user response...")
+            throw NudgeError.agentStateVarMissing(description: "temp_user_response variable is missing")
         }
         
         return [
-            "chat_history":
-                    [
-                        "agent: \(response.ask_user ?? "Agent asked user")",
-                        "user: Do what you think is best. You have complete freedom to choose"
-                    ]
-        ]
+            "chat_history": ["agent: \(response.ask_user ?? "No question asked")", "user: \(userResponse)"]
+            ]
+            
     }
     
     // Checks if we need to end the loop or call some other tool
     func edgeConditionForLLM(Action: NudgeAgentState) async throws -> String {
-        os_log("Edge conditon is checked", log: log, type: .debug)
-        guard let errors = Action.no_of_errors else {
-            os_log("The errors variable not found in the state", log: log, type: .debug)
-            self.serverDelegate?.agentFacedError(error: "Having trouble tracking errors...")
-            throw NudgeError.agentStateVarMissing(description: "The agent_outcome has no no_of_error")
-        }
-        guard let iterations = Action.no_of_iteration else {
-            os_log("The iterations variable not found in the state", log: log, type: .debug)
-            self.serverDelegate?.agentFacedError(error: "Having trouble tracking progress...")
-            throw NudgeError.agentStateVarMissing(description: "The agent_outcome has no no_of_iteration")
+        guard let errors = Action.no_of_errors,
+              let iterations = Action.no_of_iteration else {
+            self.serverDelegate?.agentFacedError(error: "Having trouble tracking execution state...")
+            throw NudgeError.agentStateVarMissing(description: "Missing iteration or error tracking variables")
         }
         
         if (errors > 5 || iterations > 30) {
-            os_log("Reached the limit of iterations and errors, stopping")
+            os_log("Agent execution limits reached - stopping (errors: %d, iterations: %d)", log: log, type: .info, errors, iterations)
             return "finish"
         }
         // Based on the agent outcome decide if we need to go to the tool_call or end it
-        if (Action.agent_outcome?.choices.first?.message.toolCalls?.count ?? 0 > 0) {
-            os_log("Deciding to go to the node tool_call as tools are available", log: log, type: .debug)
+        if (Action.agent_outcome?.last?.choices.first?.message.toolCalls?.count ?? 0 > 0) {
+            os_log("Agent requesting tool execution", log: log, type: .info)
             return "tool_call"
         }
         
-        guard let response = Action.agent_outcome?.choices.first?.message.content?.data(using: .utf8) else {
-            os_log("The agent outcome variable has no content to decide if we need to ask user or finish", log: log, type: .debug)
+        guard let response = Action.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) else {
             self.serverDelegate?.agentFacedError(error: "Having trouble understanding the next step...")
             throw NudgeError.agentStateVarMissing(description: "The agent_outcome has no content")
         }
-        os_log("Response received will decide if we need to ask user or finish")
-        let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: response)
+        let message: AgentResponse = try JSONDecoder().decode(AgentResponse.self, from: response)
         if message.ask_user != nil {
+            os_log("Agent needs user input", log: log, type: .info)
             return "ask_user"
         }
         if message.finished != nil {
-            os_log("Finishing because agent says: %@", log: log, type: .debug, message.finished!)
+            os_log("Agent completed task successfully", log: log, type: .info)
             return "finish"
         }
         
         if message.agent_thought != nil {
-            os_log("Some how the agent just thought, no tool call nothin. So returning it back to llm call")
-            return "llm_call"
+                return "llm_call"
         }
-        os_log("Why am i here", log: log, type: .debug)
-        os_log("%@", log: log, type: .debug, String(data: response, encoding: .utf8) ?? "NO DATA")
 
         return "finish"
     }
@@ -337,13 +306,11 @@ struct NudgeAgent {
     // MARK: Private functions
     
     private mutating func initialiseAgentState() throws {
-        os_log("Initializing agent state with .md files", log: log, type: .debug)
         
         // Load system instructions from SystemInstructions.md
         if let systemInstructionsPath = Bundle.main.path(forResource: "SystemInstructions", ofType: "md") {
             let systemInstructions = try String(contentsOfFile: systemInstructionsPath, encoding: .utf8)
             self.state.data["system_instructions"] = systemInstructions
-            os_log("Loaded system instructions successfully", log: log, type: .debug)
         } else {
             os_log("SystemInstructions.md not found in bundle", log: log, type: .error)
             throw NudgeError.agentNotInitialized(description: "SystemInstrcutions.md not found in bundle")
@@ -353,7 +320,6 @@ struct NudgeAgent {
         if let rulesPath = Bundle.main.path(forResource: "Nudge", ofType: "md") {
             let rules = try String(contentsOfFile: rulesPath, encoding: .utf8)
             self.state.data["rules"] = rules
-            os_log("Loaded rules successfully", log: log, type: .debug)
         } else {
             os_log("Nudge.md not found in bundle", log: log, type: .error)
             throw NudgeError.agentNotInitialized(description: "Nudge.md not found in bundle")
@@ -365,7 +331,6 @@ struct NudgeAgent {
         self.state.data["no_of_iteration"] = 0
         self.state.data["no_of_errors"] = 0
 
-        os_log("Agent state initialization completed", log: log, type: .debug)
     }
     
     
@@ -374,7 +339,6 @@ struct NudgeAgent {
         
         while retryCount <= maxRetries {
             do {
-                os_log("Attempting OpenAI request (attempt %d/%d)", log: log, type: .debug, retryCount + 1, maxRetries + 1)
                 
                 let response = try await self.openAIClient.chats(query: query)
                 os_log("OpenAI request successful", log: log, type: .info)
@@ -467,8 +431,8 @@ struct NudgeAgent {
         }
         
         // Add previous agent outcome if available
-        if let message = state.agent_outcome?.choices.first?.message.content?.data(using: .utf8) {
-            let agent_message = try self.jsonDecoder.decode(agentResponse.self, from: message)
+        if let message = state.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) {
+            let agent_message = try self.jsonDecoder.decode(AgentResponse.self, from: message)
             if let thought = agent_message.agent_thought {
                 contextComponents.append("## agent_thought\n\(thought)")
             }
@@ -516,20 +480,56 @@ struct NudgeAgent {
     
     // MARK: Public functions
 
-    public mutating func invoke() async throws -> NudgeAgentState? {
-        os_log("Running the Nudge Agent...", log: log, type: .debug)
-        os_log("Current Context: %@", log: log, type: .debug, try self.buildContextFromState(self.state))
-        return try await self.agent?.invoke(inputs: self.state.data, verbose: true)
+//    public func invoke(config: RunnableConfig) async throws -> NudgeAgentState? {
+//        return try await self.agent?.invoke(.args(self.state.data), config: config)
+//    }
+    
+//    public mutating func stream(message: String, config: RunnableConfig) async throws -> NudgeAgentState? {
+//        self.state.data["user_query"] = message
+//        let initVal: ( lastState: NudgeAgentState?, nodes: [String]) = (nil, [])
+//        guard let agent = self.agent else {
+//            throw NudgeError.agentNotInitialized(description: "Agent variable is nil")
+//        }
+//        
+//        return try await agent.stream(.args(self.state.data), config: config).reduce(initVal, { partialResult, output in
+//            return (output.state, partialResult.1 + [output.node])
+//        })
+//    }
+    
+//    public func resume(config: RunnableConfig, partialState: PartialAgentState) async throws -> NudgeAgentState? {
+//        guard let lastCheckpoint = self.saver.get(config: config) else {
+//            throw NudgeError.noCheckpointFound
+//        }
+//        guard let agent = self.agent else {
+//            throw NudgeError.agentNotInitialized(description: "Agent variable is nil")
+//        }
+//        var runnableConfig = config.with(update: {$0.checkpointId = lastCheckpoint.id})
+//        runnableConfig = try await agent.updateState(config: runnableConfig, values: partialState)
+//        return try await self.agent?.invoke(.resume, config: runnableConfig)
+//    }
+    
+    public func getState(config: RunnableConfig) throws -> Checkpoint? {
+        return self.saver.get(config: config)
+    }
+    
+    public func updateState(config: RunnableConfig, state: [String: Any]) async throws -> RunnableConfig {
+        guard let agent = self.agent else {
+            os_log("Agent is not initialized, cannot update state", log: log, type: .error)
+            throw NudgeError.agentNotInitialized(description: "Agent variable is nil")
+        }
+        return try await agent.updateState(config: config, values: state)
     }
     
     public mutating func updateTools(_ tools: [ChatQuery.ChatCompletionToolParam]) {
         self.chat_gpt_tools = tools
         self.state.data["available_tools"] = tools
-        os_log("NudgeAgent: Tools updated, now have %d tools", log: log, type: .debug, self.chat_gpt_tools.count)
+        os_log("Agent tools updated - %d available", log: log, type: .info, self.chat_gpt_tools.count)
     }
     
     public mutating func interruptAgent() {
-        self.agent?.interrupt("Agent interrupted by user")
+        //self.agent?.interrupt("Agent interrupted by user")
+        self.agent?.pause()
+        os_log("Agent execution interrupted", log: log, type: .info)
     }
 }
 

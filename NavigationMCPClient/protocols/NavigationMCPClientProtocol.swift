@@ -11,8 +11,11 @@ import Foundation
 @objc protocol NavigationMCPClientProtocol {
     
     // Send a message from user to the MCP client
-    func sendUserMessage(_ message: String)
+    func sendUserMessage(_ message: String, threadId: String)
     
+    // Send a message from user to the MCP client
+    func respondLLMAgent(_ message: String, threadId: String)
+
     // Set the callback client for two-way communication
     func setCallbackClient(_ client: NavigationMCPClientCallbackProtocol)
     

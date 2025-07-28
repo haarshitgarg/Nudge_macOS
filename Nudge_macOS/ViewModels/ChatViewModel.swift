@@ -21,9 +21,9 @@ enum UITransitionState: String, CaseIterable {
     
     var isInteractionEnabled: Bool {
         switch self {
-        case .input:
+        case .input, .responding:
             return true
-        case .shrinking, .sparkles, .transitioning, .thinking, .responding, .expanding:
+        case .shrinking, .sparkles, .transitioning, .thinking, .expanding:
             return false
         }
     }
@@ -39,7 +39,6 @@ class ChatViewModel: ObservableObject {
     public let shortcutManager = ShortcutManager()
     public let navClient = NudgeNavClient()
     
-    @Published public var isLoading: Bool = false
     @Published public var llmLoopRunning: Bool = false
     @Published public var currentTool: String = ""
     @Published public var llmMessages: [String] = []
@@ -57,6 +56,11 @@ class ChatViewModel: ObservableObject {
     @Published public var agentBubbleMessage: AgentBubbleMessage?
     private var bubbleTimer: Timer?
     
+    // MARK: - User Action Prompt State Management
+    @Published public var showUserActionPrompt: Bool = false
+    @Published public var userActionMessage: String?
+    private var actionPromptTimer: Timer?
+    
     
     
     private init() {
@@ -71,13 +75,14 @@ class ChatViewModel: ObservableObject {
     public func sendMessage(_ msg: String) async throws {
         guard uiState.isInteractionEnabled else { return }
         
-        isLoading = true
-        defer { isLoading = false }
-        
-        // Initiate transition to thinking state
-        //transitionToThinking()
-        
         try navClient.sendMessageToMCPClient(msg)
+    }
+    
+    public func respondLLM(_ msg: String) async throws {
+        // TODO: Send the response to the LLM
+        guard uiState.isInteractionEnabled else { return }
+        self.transitionToThinking()
+        try navClient.respondToAgent(msg)
     }
     
     public func terminateAgent() throws {
@@ -88,7 +93,7 @@ class ChatViewModel: ObservableObject {
     
     // MARK: - UI Transition State Machine
     public func transitionToThinking() {
-        guard uiState == .input else { return }
+        guard uiState == .input || uiState == .responding else { return }
         
         isTransitioning = true
         
@@ -104,8 +109,6 @@ class ChatViewModel: ObservableObject {
     }
     
     public func transitionToResponding() {
-        guard uiState == .thinking else { return }
-        
         uiState = .responding
     }
     
@@ -173,19 +176,53 @@ class ChatViewModel: ObservableObject {
     public func showErrorMessage(_ message: String) {
         showAgentBubble(message: message, type: .error)
     }
+    
+    public func showLLMquery(_ query: String) {
+        self.transitionToResponding()
+    }
+    
+    // MARK: - User Action Prompt Management
+    public func showUserActionPrompt(message: String) {
+        // Cancel any existing timer
+        actionPromptTimer?.invalidate()
+        
+        // Update prompt content
+        userActionMessage = message
+        showUserActionPrompt = true
+        
+        // Auto-dismiss after 12 seconds
+        actionPromptTimer = Timer.scheduledTimer(withTimeInterval: 12.0, repeats: false) { _ in
+            Task {
+                await self.hideUserActionPrompt()
+            }
+        }
+    }
+    
+    public func hideUserActionPrompt() {
+        showUserActionPrompt = false
+        actionPromptTimer?.invalidate()
+        actionPromptTimer = nil
+        
+        // Clear message after animation completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            self.userActionMessage = nil
+        }
+    }
 
     deinit {
-        os_log("ChatViewModel is being deinitialized", log: log, type: .debug)
         // Note: Cannot call @MainActor cleanup() from deinit
         // Cleanup should be called explicitly before deinitialization
     }
     
     func cleanup() {
-        os_log("Cleaning up ChatViewModel resources", log: log, type: .debug)
         
         // Cancel bubble timer
         bubbleTimer?.invalidate()
         bubbleTimer = nil
+        
+        // Cancel action prompt timer
+        actionPromptTimer?.invalidate()
+        actionPromptTimer = nil
         
         // Disconnect XPC clients (these are not MainActor isolated)
         Task.detached {
@@ -216,7 +253,7 @@ extension ChatViewModel: ShortcutManagerDelegate {
 // MARK: - NudgeNavClientDelegate Implementation
 extension ChatViewModel: NudgeNavClientDelegate {
     func onLLMLoopStarted() {
-        os_log("LLM loop started in ChatViewModel - updating UI", log: log, type: .info)
+        os_log("Agent processing started", log: log, type: .info)
         llmLoopRunning = true
         currentTool = ""
         llmMessages.removeAll()
@@ -227,23 +264,25 @@ extension ChatViewModel: NudgeNavClientDelegate {
     }
     
     func onLLMLoopFinished() {
-        os_log("LLM loop finished - updating UI", log: log, type: .debug)
+        os_log("Agent processing finished", log: log, type: .info)
         llmLoopRunning = false
         currentTool = ""
-        transitionToInput()
+        
+        if uiState == .thinking || uiState == .responding {
+            transitionToInput()
+        }
         
         // Show completion message
         showSuccessMessage("Task completed successfully!")
     }
     
     func onToolCalled(toolName: String) {
-        os_log("Tool called: %@ - updating UI", log: log, type: .debug, toolName)
         currentTool = toolName
         
-        // Transition to responding state when tool is called
-        if uiState == .thinking {
-            transitionToResponding()
-        }
+//        // Transition to responding state when tool is called
+//        if uiState == .thinking {
+//            transitionToResponding()
+//        }
         
         // Show tool execution bubble
         showToolExecution(toolName)
@@ -255,6 +294,14 @@ extension ChatViewModel: NudgeNavClientDelegate {
         
         // Show agent thoughts in bubble
         showAgentThought(message)
+    }
+    
+    func onUserMessage(_ message: String) {
+        os_log("User message received: %@ - updating UI", log: log, type: .info, message)
+        self.transitionToResponding()
+        
+        // Show user action prompt
+        showUserActionPrompt(message: message)
     }
     
     func onError(_ error: String) {

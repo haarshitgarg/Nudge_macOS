@@ -26,7 +26,14 @@ struct InputView: View {
             let message = query
             query = ""
             Task {
-                do { try await self.chatViewModel.sendMessage(message)
+                do {
+                    if chatViewModel.uiState == .input {
+                        try await self.chatViewModel.sendMessage(message)
+                    }
+                    else if chatViewModel.uiState == .responding {
+                        try await self.chatViewModel.respondLLM(message)
+                    }
+
                 } catch { os_log("Failed to send message: %@", log: log, type: .fault, error.localizedDescription) }
             }
         }
@@ -41,18 +48,16 @@ struct InputView: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 20))
                     .disabled(!chatViewModel.uiState.isInteractionEnabled)
-                    .opacity(chatViewModel.uiState == .input ? 1.0 : 0.0)
                     .onSubmit {sendAction()}
                 
                 // SPEECH BUTTON - Disappears instantly
-                Button(action: { os_log("Not implemented yet", log: log, type: .debug)}) {
+                Button(action: {}) {
                     Image(systemName: "mic.fill")
                         .font(.title2)
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
                 .disabled(!chatViewModel.uiState.isInteractionEnabled)
-                .opacity(chatViewModel.uiState == .input ? 1.0 : 0.0)
             }
             
             //.shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
