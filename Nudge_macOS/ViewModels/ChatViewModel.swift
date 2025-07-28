@@ -210,13 +210,11 @@ class ChatViewModel: ObservableObject {
     }
 
     deinit {
-        os_log("ChatViewModel is being deinitialized", log: log, type: .debug)
         // Note: Cannot call @MainActor cleanup() from deinit
         // Cleanup should be called explicitly before deinitialization
     }
     
     func cleanup() {
-        os_log("Cleaning up ChatViewModel resources", log: log, type: .debug)
         
         // Cancel bubble timer
         bubbleTimer?.invalidate()
@@ -266,7 +264,6 @@ extension ChatViewModel: NudgeNavClientDelegate {
     }
     
     func onLLMLoopFinished() {
-        os_log("LLM loop finished - updating UI", log: log, type: .debug)
         llmLoopRunning = false
         currentTool = ""
         
@@ -279,7 +276,6 @@ extension ChatViewModel: NudgeNavClientDelegate {
     }
     
     func onToolCalled(toolName: String) {
-        os_log("Tool called: %@ - updating UI", log: log, type: .debug, toolName)
         currentTool = toolName
         
 //        // Transition to responding state when tool is called

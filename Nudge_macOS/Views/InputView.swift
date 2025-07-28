@@ -51,7 +51,7 @@ struct InputView: View {
                     .onSubmit {sendAction()}
                 
                 // SPEECH BUTTON - Disappears instantly
-                Button(action: { os_log("Not implemented yet", log: log, type: .debug)}) {
+                Button(action: {}) {
                     Image(systemName: "mic.fill")
                         .font(.title2)
                         .foregroundColor(.secondary)
