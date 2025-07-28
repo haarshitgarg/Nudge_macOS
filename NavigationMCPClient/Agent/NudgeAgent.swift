@@ -173,6 +173,7 @@ struct NudgeAgent {
         }
         
         let function_name = curr_tool.function.name
+        os_log("Executing tool: %@", log: log, type: .info, function_name)
         self.serverDelegate?.agentCalledTool(toolName: function_name)
         guard let argumentsData = curr_tool.function.arguments.data(using: .utf8) else {
             os_log("Failed to convert arguments to Data", log: log, type: .error)
@@ -277,12 +278,12 @@ struct NudgeAgent {
         }
         
         if (errors > 5 || iterations > 30) {
-            os_log("Reached the limit of iterations and errors, stopping")
+            os_log("Agent execution limits reached - stopping (errors: %d, iterations: %d)", log: log, type: .info, errors, iterations)
             return "finish"
         }
         // Based on the agent outcome decide if we need to go to the tool_call or end it
         if (Action.agent_outcome?.last?.choices.first?.message.toolCalls?.count ?? 0 > 0) {
-            os_log("Deciding to go to the node tool_call as tools are available", log: log, type: .debug)
+            os_log("Agent requesting tool execution", log: log, type: .info)
             return "tool_call"
         }
         
@@ -292,9 +293,11 @@ struct NudgeAgent {
         }
         let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: response)
         if message.ask_user != nil {
+            os_log("Agent needs user input", log: log, type: .info)
             return "ask_user"
         }
         if message.finished != nil {
+            os_log("Agent completed task successfully", log: log, type: .info)
             return "finish"
         }
         

@@ -74,8 +74,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 
                 final_state = result?.lastState
                 
-                // Final state summary for debugging
-                os_log("Agent completed - iterations: %d, errors: %d", log: log, type: .info, final_state?.no_of_iteration ?? 0, final_state?.no_of_errors ?? 0)
+                os_log("Agent execution completed - iterations: %d, errors: %d", log: log, type: .info, final_state?.no_of_iteration ?? 0, final_state?.no_of_errors ?? 0)
                 guard let agent_response = final_state?.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) else {
                     os_log("No agent response found in final state", log: log, type: .error)
                     throw NudgeError.noAgentResponseFound
@@ -83,10 +82,12 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: agent_response)
                 
                 if message.ask_user != nil {
+                    os_log("Agent requesting user input", log: log, type: .info)
                     self.callbackClient?.onUserMessage(message.ask_user!)
                 }
                 
                 else if message.finished != nil {
+                    os_log("Agent task completed", log: log, type: .info)
                     self.callbackClient?.onLLMLoopFinished()
                 }
                 
@@ -103,7 +104,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     }
     
     @objc func respondLLMAgent(_ message: String, threadId: String) {
-        os_log("Processing agent response on thread: %@", log: log, type: .info, threadId)
+        os_log("Processing user response on thread: %@", log: log, type: .info, threadId)
         Task {
             self.callbackClient?.onLLMLoopStarted()
             sleep(1)
@@ -145,10 +146,12 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 let message: agentResponse = try JSONDecoder().decode(agentResponse.self, from: agent_response)
                 
                 if message.ask_user != nil {
+                    os_log("Agent requesting user input", log: log, type: .info)
                     self.callbackClient?.onUserMessage(message.ask_user!)
                 }
                 
                 else if message.finished != nil {
+                    os_log("Agent task completed", log: log, type: .info)
                     self.callbackClient?.onLLMLoopFinished()
                 }
                 

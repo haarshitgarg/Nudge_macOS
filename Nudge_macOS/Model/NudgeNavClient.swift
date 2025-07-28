@@ -53,7 +53,7 @@ class NudgeNavClient: NSObject {
         connection.exportedObject = self
         connection.resume()
         
-        os_log("Connected to NAV MCP client service", log: log, type: .info)
+        os_log("XPC connection established", log: log, type: .info)
         
         // Register callback client
         os_log("About to register callback client", log: log, type: .info)
@@ -140,7 +140,7 @@ class NudgeNavClient: NSObject {
     }
     
     func disconnect() {
-        os_log("Disconnecting XPC connection", log: log, type: .info)
+        os_log("XPC connection terminated", log: log, type: .info)
         let proxy = connection?.remoteObjectProxyWithErrorHandler { error in
         } as? NavigationMCPClientProtocol
         proxy?.terminate()

@@ -93,7 +93,7 @@ class ChatViewModel: ObservableObject {
     
     // MARK: - UI Transition State Machine
     public func transitionToThinking() {
-        guard uiState == .input else { return }
+        guard uiState == .input || uiState == .responding else { return }
         
         isTransitioning = true
         
@@ -253,7 +253,7 @@ extension ChatViewModel: ShortcutManagerDelegate {
 // MARK: - NudgeNavClientDelegate Implementation
 extension ChatViewModel: NudgeNavClientDelegate {
     func onLLMLoopStarted() {
-        os_log("LLM loop started in ChatViewModel - updating UI", log: log, type: .info)
+        os_log("Agent processing started", log: log, type: .info)
         llmLoopRunning = true
         currentTool = ""
         llmMessages.removeAll()
@@ -264,6 +264,7 @@ extension ChatViewModel: NudgeNavClientDelegate {
     }
     
     func onLLMLoopFinished() {
+        os_log("Agent processing finished", log: log, type: .info)
         llmLoopRunning = false
         currentTool = ""
         
