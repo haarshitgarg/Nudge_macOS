@@ -281,10 +281,6 @@ struct NudgeAgent {
         }
         
         let response: agentResponse = try self.jsonDecoder.decode(agentResponse.self, from: message)
-        if response.ask_user != nil {
-            os_log("Asking user for information", log: log, type: .debug)
-            self.serverDelegate?.agentAskedUserForInput(question: response.ask_user!)
-        }
         
         guard let userResponse = Action.temp_user_response else {
             os_log("The user response variable not found in the state", log: log, type: .debug)

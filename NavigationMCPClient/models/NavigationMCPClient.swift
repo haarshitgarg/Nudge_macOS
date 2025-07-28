@@ -78,7 +78,13 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 final_state = result?.lastState
                 
                 // Print the final state for debugging
-                os_log("Final state after invocation: %{public}@", log: log, type: .debug, String(describing: final_state!.data))
+                //os_log("Final state after invocation: %{public}@", log: log, type: .debug, String(describing: final_state!.data))
+                os_log("Final state after invocation: ", log: log, type: .debug)
+                os_log("  - No of iterations: %d", log: log, type: .debug, final_state?.no_of_iteration ?? 0)
+                os_log("  - No of errors: %d", log: log, type: .debug, final_state?.no_of_errors ?? 0)
+                os_log("  - Tool call result: %@", log: log, type: .debug, final_state?.tool_call_result ?? "None")
+                os_log("  - Agent outcome: %@", log: log, type: .debug, String(describing: final_state?.agent_outcome))
+                os_log("  - Chat history: %@", log: log, type: .debug, String(describing: final_state?.chat_history))
                 guard let agent_response = final_state?.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) else {
                     os_log("No agent response found in final state", log: log, type: .error)
                     throw NudgeError.noAgentResponseFound
