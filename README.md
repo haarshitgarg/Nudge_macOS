@@ -2,6 +2,10 @@
 
 A sophisticated AI-powered navigation assistant that guides users through macOS interfaces using natural language. Nudge lives in your menu bar and provides an intelligent floating chat panel to help you navigate and interact with any macOS application.
 
+#### MCP SERVER
+I am using the mcp server I wrote to power this agent
+Link: https://github.com/haarshitgarg/Nudge-Server
+
 [![Watch the demo](https://img.youtube.com/vi/F6bio6s9JWs/0.jpg)](https://youtu.be/F6bio6s9JWs)
 
 ## Features
