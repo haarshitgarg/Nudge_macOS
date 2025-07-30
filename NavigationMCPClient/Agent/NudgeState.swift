@@ -16,7 +16,8 @@ struct NudgeAgentState: AgentState {
     
     static var schema: Channels = {
         [
-            "chat_history": AppenderChannel<String>()
+            "chat_history": AppenderChannel<String>(),
+            "agent_outcome": AppenderChannel<ChatResult>()
         ]
     }()
     
@@ -56,7 +57,7 @@ struct NudgeAgentState: AgentState {
     }
     
     // Whatever the agent has blurted out.
-    var agent_outcome: ChatResult? {
+    var agent_outcome: [ChatResult]? {
         value("agent_outcome")
     }
     
@@ -81,5 +82,8 @@ struct NudgeAgentState: AgentState {
         value("chat_history")
     }
     
+    var temp_user_response: String? {
+        value("temp_user_response")
+    }
+    
 }
-

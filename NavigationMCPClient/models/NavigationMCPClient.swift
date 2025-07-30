@@ -12,6 +12,7 @@ import os
 import OpenAI
 import System
 import NudgeLibrary
+import LangGraph
 
 /// This object implements the protocol which we have defined. It provides the actual behavior for the service. It is 'exported' by the service to make it available to the process hosting the service over an NSXPCConnection.
 class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
@@ -19,12 +20,15 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     private let log_llm = OSLog(subsystem: "Harshit.Nudge", category: "LLM")
     private let logger = Logger(label: "Harshit.Nudge")
     
+    // Agent Varibles
+    private var nudgeAgent: NudgeAgent
+    private var configs: [String: RunnableConfig] = [:]
+
     // MCP client variables
     private var serverDict: [MCPServer: ClientInfo] = [:]
     private var openAIClient: OpenAI? = nil
     private let jsonEncoder: JSONEncoder = JSONEncoder()
     private let jsonDecoder: JSONDecoder = JSONDecoder()
-    private var nudgeAgent: NudgeAgent
     
     // Callback client for two-way communication
     // Using strong reference to prevent deallocation during async operations
@@ -35,41 +39,62 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         self.nudgeAgent = try! NudgeAgent()
         super.init()
         
-        os_log("NavigationMCPClient initialized - instance: %@", log: log, type: .debug, String(describing: self))
+        self.nudgeAgent.serverDelegate = self
+
+        os_log("NavigationMCPClient initialized", log: log, type: .info)
         jsonEncoder.outputFormatting = [.prettyPrinted]
-        os_log("Initializing the nudge agent", log: log, type: .debug)
         
         try! self.nudgeAgent.defineWorkFlow()
         os_log("✅ Workflow compilation completed successfully", log: log, type: .info)
         
     }
     
-    @objc func sendUserMessage(_ message: String) {
-        os_log("Received user message: %@ on instance: %@", log: log, type: .debug, message, String(describing: self))
+    @objc func sendUserMessage(_ message: String, threadId: String = "default") {
+        os_log("Processing user message: %@", log: log, type: .info, message)
         Task {
             do {
-                //try await communication_with_chatgpt(message)
                 self.callbackClient?.onLLMLoopStarted()
                 sleep(1)
-                // Set the user query in the agent state before invoking
-                let tools = self.getTools()
-                os_log("Updating agent with %d tools", log: log, type: .debug, tools.count)
-                self.nudgeAgent.updateTools(tools)
-                self.nudgeAgent.state.data["user_query"] = message
-                os_log("Set user query in agent state: %@", log: log, type: .debug, message)
                 
-                let final_state = try await self.nudgeAgent.invoke()
-                os_log("Agent invocation completed. Iterations: %{public}d, Errors: %{public}d, Tool calls result: %{public}@", 
-                       log: log, type: .info, 
-                       final_state?.no_of_iteration ?? 0,
-                       final_state?.no_of_errors ?? 0,
-                       final_state?.tool_call_result ?? "None")
+                var runableConfig: RunnableConfig
+                var final_state: NudgeAgentState?
                 
-                if let chatHistory = final_state?.chat_history {
-                    os_log("Chat history (%{public}d messages): %{public}@", log: log, type: .info, chatHistory.count, chatHistory.joined(separator: " | "))
+                if let config = configs[threadId] {
+                    runableConfig = config
+                } else {
+                    runableConfig = RunnableConfig(threadId: threadId)
+                    configs[threadId] = runableConfig
                 }
                 
-                self.callbackClient?.onLLMLoopFinished()
+                self.nudgeAgent.state.data["user_query"] = message
+                let initVal: ( lastState: NudgeAgentState?, nodes: [String]) = (nil, [])
+                let result = try await self.nudgeAgent.agent?.stream(.args(self.nudgeAgent.state.data), config: runableConfig).reduce(initVal, { partialResult, output in
+                    return (output.state, partialResult.1 + [output.node])
+                })
+                
+                final_state = result?.lastState
+                
+                os_log("Agent execution completed - iterations: %d, errors: %d", log: log, type: .info, final_state?.no_of_iteration ?? 0, final_state?.no_of_errors ?? 0)
+                guard let agent_response = final_state?.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) else {
+                    os_log("No agent response found in final state", log: log, type: .error)
+                    throw NudgeError.noAgentResponseFound
+                }
+                let message: AgentResponse = try JSONDecoder().decode(AgentResponse.self, from: agent_response)
+                
+                if message.ask_user != nil {
+                    os_log("Agent requesting user input", log: log, type: .info)
+                    self.callbackClient?.onUserMessage(message.ask_user!)
+                }
+                
+                else if message.finished != nil {
+                    os_log("Agent task completed", log: log, type: .info)
+                    self.callbackClient?.onLLMLoopFinished()
+                }
+                
+                else if message.agent_thought != nil {
+                    self.callbackClient?.onLLMLoopFinished()
+                }
+
                 
             } catch {
                 os_log("Error while sending user message: %@", log: log, type: .error, error.localizedDescription)
@@ -78,40 +103,103 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         }
     }
     
+    @objc func respondLLMAgent(_ message: String, threadId: String) {
+        os_log("Processing user response on thread: %@", log: log, type: .info, threadId)
+        Task {
+            self.callbackClient?.onLLMLoopStarted()
+            sleep(1)
+            do {
+                var final_state: NudgeAgentState?
+                
+                guard var runableConfig = configs[threadId] else {
+                    os_log("No runnable config found for thread ID: %@", log: log, type: .error, threadId)
+                    throw NudgeError.noRunnableConfigFound
+                }
+                
+                
+                guard let checkpoint = try self.nudgeAgent.getState(config: runableConfig) else {
+                    os_log("No checkpoint found for thread ID: %@", log: log, type: .error, threadId)
+                    throw NudgeError.noCheckpointFound
+                }
+                
+                
+                //checkpoint = try checkpoint.updateState(values: ["temp_user_response": "\(message)"], channels: NudgeAgentState.schema)
+                runableConfig = runableConfig.with(update: {$0.checkpointId = checkpoint.id})
+                runableConfig = try await self.nudgeAgent.updateState(config: runableConfig, state: ["temp_user_response": "\(message)"])
+
+                
+                let initVal: ( lastState: NudgeAgentState?, nodes: [String]) = (nil, [])
+                let result = try await self.nudgeAgent.agent?.stream(.resume, config: runableConfig).reduce(initVal, { partialResult, output in
+                    return (output.state, partialResult.1 + [output.node])
+                })
+                
+                final_state = result?.lastState
+                
+                //final_state = try await self.nudgeAgent.resume(config: runableConfig, partialState: checkpoint.state)
+                
+                
+                
+                guard let agent_response = final_state?.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) else {
+                    os_log("No agent response found in final state", log: log, type: .error)
+                    throw NudgeError.noAgentResponseFound
+                }
+                let message: AgentResponse = try JSONDecoder().decode(AgentResponse.self, from: agent_response)
+                
+                if message.ask_user != nil {
+                    os_log("Agent requesting user input", log: log, type: .info)
+                    self.callbackClient?.onUserMessage(message.ask_user!)
+                }
+                
+                else if message.finished != nil {
+                    os_log("Agent task completed", log: log, type: .info)
+                    self.callbackClient?.onLLMLoopFinished()
+                }
+                
+                else if message.agent_thought != nil {
+                    self.callbackClient?.onLLMLoopFinished()
+                }
+
+                
+            } catch {
+                os_log("Error while sending user response: %@", log: log, type: .error, error.localizedDescription)
+                callbackClient?.onError("Error processing response from user: \(error.localizedDescription)")
+            }
+        }
+        
+    }
+    
     @objc func setCallbackClient(_ client: NavigationMCPClientCallbackProtocol) {
-        os_log("Setting callback client for two-way communication: %@", log: log, type: .debug, String(describing: client))
+        os_log("Callback client registered", log: log, type: .info)
         self.callbackClient = client
         
-        // Test the callback immediately
-        os_log("Testing callback client with ping message", log: log, type: .debug)
         client.onLLMMessage("Callback client registered successfully")
-        
-        // Store a strong reference to prevent deallocation during async operations
-        // The weak reference might be getting lost during async tasks
+    }
+    
+    @objc func interruptAgentExecution() {
+        os_log("Agent execution interrupted", log: log, type: .info)
+        self.nudgeAgent.interruptAgent()
     }
     
     @objc func terminate() {
-        os_log("Stopping all processes the xpc client. No of clients: %d", log: log, type: .debug, serverDict.count)
+        os_log("Terminating XPC client processes", log: log, type: .info)
         for clientInfo in serverDict.values {
             if let pid = clientInfo.process?.processIdentifier  {
-                os_log("Termination process with PID: %@", log: log, type: .debug, String(pid))
                 kill(pid, SIGKILL)
                 clientInfo.process?.waitUntilExit()
             } else {
-                os_log("No PID to kill", log: log, type: .debug)
             }
         }
         
         // TODO: when I make it two way communication I might need to mark client as nil
+        self.callbackClient = nil
     }
     
     @objc func ping(_ message: String) {
-        os_log("Received ping message: %@", log: log, type: .debug, message)
     }
     
     // MARK: - Start the MCP client settings from here
     public func setupMCPClient() async {
-        os_log("Setting up MCP Client...", log: log, type: .debug)
+        os_log("Setting up MCP Client", log: log, type: .info)
         // Setup the All necessary navigation
         // This is just a dummy server will not be required
         let navServer = MCPServer(name: "NavServer")
@@ -121,7 +209,6 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         do { try getNavTools(client: &navClientInfo)}
         catch {os_log("Error in navclient", log: log, type: .error)}
         serverDict[navServer] = navClientInfo
-        os_log("Tools received from nudge %{public}d", log: log, type: .debug, navClientInfo.mcp_tools.count)
         
         // Load server configuration
         loadServerConfig()
@@ -154,13 +241,13 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             }
         }
         
-        os_log("MCP Client setup completed. Total tools loaded: %d", log: log, type: .info, getTools().count)
+        os_log("MCP Client setup completed - %d tools loaded", log: log, type: .info, getTools().count)
+        initialiseAgentState()
     }
     
     private func getTools() -> [ChatQuery.ChatCompletionToolParam] {
         var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
         for clientInfo in self.serverDict.values { chat_gpt_tools.append(contentsOf: clientInfo.chat_gpt_tools) }
-        os_log("Got %d tools in chat gpt", log: log, type: .debug, chat_gpt_tools.count)
         
         return chat_gpt_tools
     }
@@ -176,20 +263,17 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             logger: logger
         )
         let executablePath = Bundle.main.path(forResource: "NudgeServer", ofType: nil)!
-        os_log("Executable path: %@", log: log, type: .debug, executablePath)
         serverDict[server]?.process = Process()
         serverDict[server]?.process?.executableURL = URL(fileURLWithPath: executablePath)
         serverDict[server]?.process?.arguments = [""]
         serverDict[server]?.process?.standardInput = serverInputPipe
         serverDict[server]?.process?.standardOutput = serverOutputPipe
         try serverDict[server]?.process?.run()
-        os_log("Running the client process to start server...", log: log, type: .debug)
         try await serverDict[server]?.client?.connect(transport: transport)
     }
 
     private func loadServerConfig() {
         var serverConfigs: [ServerConfig] = []
-        os_log("Loading server configuration...", log: log, type: .debug)
         
         // Get the path to the servers.json file
         guard let bundlePath = Bundle.main.path(forResource: "servers", ofType: "json") else {
@@ -207,18 +291,9 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
             // Store the server configurations
             serverConfigs = config.servers
             
-            os_log("Successfully loaded %d server configurations", log: log, type: .debug, config.servers.count)
-            
+                
             // Iterate through each server configuration
-            for (index, serverConfig) in serverConfigs.enumerated() {
-                os_log("Server %d: %@ (%@:%d, protocol: %@, requiresAccessibility: %@)",
-                       log: log, type: .debug, 
-                       index + 1, 
-                       serverConfig.name,
-                       serverConfig.address ?? "no address as stdio transport",
-                       serverConfig.transport,
-                       serverConfig.clientName,
-                       serverConfig.requiresAccessibility ? "true" : "false")
+            for (_, serverConfig) in serverConfigs.enumerated() {
                 
                 let server = MCPServer(
                     name: serverConfig.name,
@@ -235,18 +310,14 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     }
     
     private func getTools(_ server: MCPServer) async throws {
-        os_log("Fetching tools from server %@", log: log, type: .debug, server.name)
         let response = try await serverDict[server]?.client?.listTools()
         serverDict[server]?.mcp_tools = response?.tools ?? []
         var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
         for tool in response?.tools ?? [] {
-            os_log("Processing tool: %@", log: log, type: .debug, tool.name)
             
             let schema_data = try jsonEncoder.encode(tool.inputSchema)
-            os_log("Encoded tool schema data: %@", log: log, type: .debug, String(data: schema_data, encoding: .utf8) ?? "No data")
             
             let tool_schema = try jsonDecoder.decode(AnyJSONSchema.self, from: schema_data)
-            os_log("Decoded tool schema: %@", log: log, type: .debug, String(describing: tool_schema))
             
             let function: ChatQuery.ChatCompletionToolParam.FunctionDefinition = ChatQuery.ChatCompletionToolParam.FunctionDefinition(
                 name: tool.name,
@@ -261,13 +332,10 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     private func getNavTools( client: inout ClientInfo) throws {
         var chat_gpt_tools: [ChatQuery.ChatCompletionToolParam] = []
         for tool in client.mcp_tools {
-            os_log("Processing tool: %@", log: log, type: .debug, tool.name)
             
             let schema_data = try jsonEncoder.encode(tool.inputSchema)
-            os_log("Encoded tool schema data: %@", log: log, type: .debug, String(data: schema_data, encoding: .utf8) ?? "No data")
             
             let tool_schema = try jsonDecoder.decode(AnyJSONSchema.self, from: schema_data)
-            os_log("Decoded tool schema: %@", log: log, type: .debug, String(describing: tool_schema))
             
             let function: ChatQuery.ChatCompletionToolParam.FunctionDefinition = ChatQuery.ChatCompletionToolParam.FunctionDefinition(
                 name: tool.name,
@@ -279,9 +347,33 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         client.chat_gpt_tools = chat_gpt_tools
     }
     
-    deinit {
-        os_log("Deinitialising the xpc client", log: log, type: .debug)
+    private func initialiseAgentState() {
+        let tools = self.getTools()
+        self.nudgeAgent.updateTools(tools)
     }
     
+    deinit {
+    }
+    
+}
+
+// MARK: - Delegation protocol from NudgeAgent
+extension NavigationMCPClient: NudgeAgentDelegate {
+    func agentFacedError(error: String) {
+        self.callbackClient?.onError(error)
+    }
+    
+    func agentRespondedWithThought(thought: String) {
+        self.callbackClient?.onLLMMessage(thought)
+    }
+    
+    func agentCalledTool(toolName: String) {
+        self.callbackClient?.onToolCalled(toolName: toolName)
+    }
+    
+    func agentAskedUserForInput(question: String) {
+        self.callbackClient?.onUserMessage(question)
+        self.nudgeAgent.agent?.pause()
+    }
 }
 

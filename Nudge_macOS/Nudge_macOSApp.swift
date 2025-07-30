@@ -31,7 +31,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var floatingChatManager: FloatingChatManager?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        os_log("Application finished launching", log: log, type: .debug)
+        os_log("Application launched", log: log, type: .info)
         
         // Get the floating chat manager from the environment
         floatingChatManager = FloatingChatManager()
@@ -58,7 +58,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        os_log("Application is terminating, cleaning up resources", log: log, type: .debug)
+        os_log("Application terminating", log: log, type: .info)
         
         // Clean up resources on main actor
         Task { @MainActor in

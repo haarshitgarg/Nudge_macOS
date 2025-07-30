@@ -3,7 +3,7 @@ import os
 
 // MARK: - Notification Names
 extension Notification.Name {
-    static let dismissChatPanel = Notification.Name("dismissChatPanel")
+    static let escKeyPressed = Notification.Name("dismissChatPanel")
 }
 
 class FloatingPanel: NSPanel {
@@ -54,12 +54,10 @@ class FloatingPanel: NSPanel {
             
             // Only handle events if this panel is visible and key
             if self.isVisible && (self.isKeyWindow || self.isMainWindow) {
-                os_log("Key event detected, keyCode: %d", log: self.log, type: .debug, event.keyCode)
                 
                 // Check for escape key (keyCode 53)
                 if event.keyCode == 53 {
-                    os_log("Escape key pressed, dismissing panel", log: self.log, type: .debug)
-                    NotificationCenter.default.post(name: .dismissChatPanel, object: nil)
+                    NotificationCenter.default.post(name: .escKeyPressed, object: nil)
                     return nil // Consume the event
                 }
             }
@@ -77,14 +75,12 @@ class FloatingPanel: NSPanel {
         ) { [weak self] notification in
             guard let self = self else { return }
             
-            os_log("Panel lost key status, dismissing due to click outside", log: self.log, type: .debug)
             //NotificationCenter.default.post(name: .dismissChatPanel, object: nil)
         }
     }
     
     deinit {
         // Clean up resources if needed
-        os_log("FloatingPanel is being deinitialized", log: log, type: .debug)
         
         // Remove key event monitor
         if let monitor = keyEventMonitor {
