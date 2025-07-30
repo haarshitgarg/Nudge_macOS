@@ -2,6 +2,8 @@
 
 A sophisticated AI-powered navigation assistant that guides users through macOS interfaces using natural language. Nudge lives in your menu bar and provides an intelligent floating chat panel to help you navigate and interact with any macOS application.
 
+[![Watch the demo](https://img.youtube.com/vi/F6bio6s9JWs/0.jpg)](https://youtu.be/F6bio6s9JWs)
+
 ## Features
 
 ### 🤖 AI-Powered Navigation
@@ -14,7 +16,6 @@ A sophisticated AI-powered navigation assistant that guides users through macOS 
 - **Global Shortcuts**: Quick access via `Option+L` keyboard shortcut
 - **Modern SwiftUI Design**: Material effects and smooth animations
 
-![Main Interface](screenshots/main-interface.png)
 
 ### 🔧 System Integration
 - **Accessibility Framework**: Deep macOS integration for UI automation
@@ -33,7 +34,7 @@ A sophisticated AI-powered navigation assistant that guides users through macOS 
 ### Setup
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/Nudge_macOS.git
+   git clone https://github.com/haarshitgarg/Nudge_macOS.git
    cd Nudge_macOS
    ```
 
@@ -69,7 +70,6 @@ The app requires accessibility permissions to interact with macOS interfaces:
 ```
 Nudge_macOS/
 ├── Main App (Nudge_macOS)           # MenuBar app with chat interface
-├── NudgeHelper (XPC Service)        # System-level operations
 └── NavigationMCPClient (XPC Service) # AI navigation engine
 ```
 
@@ -99,20 +99,6 @@ The project uses Swift Package Manager for dependency management:
 - **MCP Swift SDK** (v0.9.0) - Model Context Protocol implementation
 - **OpenAI** (v0.4.3) - AI model integration
 - **NudgeLibrary** (v2.0.0) - Custom navigation tools
-
-### Project Structure
-```
-Nudge_macOS/
-├── Nudge_macOS/                # Main application
-│   ├── ViewModels/             # State management
-│   ├── Views/                  # SwiftUI views
-│   ├── Model/                  # Data models and XPC clients
-│   └── Errors/                 # Error handling
-├── NudgeHelper/                # XPC service for shortcuts
-├── NavigationMCPClient/        # XPC service for AI navigation
-├── Nudge_macOSTests/          # Unit tests
-└── Nudge_macOSUITests/        # UI tests
-```
 
 ## Contributing
 
