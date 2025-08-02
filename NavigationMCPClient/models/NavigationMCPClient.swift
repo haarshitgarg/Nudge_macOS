@@ -135,10 +135,6 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 
                 final_state = result?.lastState
                 
-                //final_state = try await self.nudgeAgent.resume(config: runableConfig, partialState: checkpoint.state)
-                
-                
-                
                 guard let agent_response = final_state?.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) else {
                     os_log("No agent response found in final state", log: log, type: .error)
                     throw NudgeError.noAgentResponseFound
