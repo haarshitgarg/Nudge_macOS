@@ -12,11 +12,22 @@ import OpenAI
 import OSLog
 import NudgeLibrary
 
+extension String {
+    func chunked(into size: Int) -> [String] {
+        return stride(from: 0, to: count, by: size).map {
+            let start = index(startIndex, offsetBy: $0)
+            let end = index(start, offsetBy: min(size, count - $0))
+            return String(self[start..<end])
+        }
+    }
+}
+
 
 
 // The nudge agent to do everything required
 struct NudgeAgent {
     let log = OSLog(subsystem: "Harshit.Nudge", category: "Agent")
+    let agent_log = OSLog(subsystem: "Harshit.Nudge", category: "AgentLog")
     // Define nodes here
     var workflow: StateGraph<NudgeAgentState>
     var state: NudgeAgentState
@@ -71,6 +82,17 @@ struct NudgeAgent {
     
     // MARK: - Agent Actions
     func contact_llm(Action: NudgeAgentState) async throws -> PartialAgentState {
+        os_log("=== AGENT STATE LOG: contact_llm node ===", log: agent_log, type: .info)
+        os_log("Iteration: %d | Errors: %d", log: agent_log, type: .info, Action.no_of_iteration ?? 0, Action.no_of_errors ?? 0)
+        os_log("User Query: %@", log: agent_log, type: .info, Action.user_query ?? "None")
+        os_log("Current App State: %@", log: agent_log, type: .info, Action.current_application_state?.isEmpty == false ? "Present (\(Action.current_application_state?.count ?? 0) chars)" : "None")
+        os_log("Todo Items: %d", log: agent_log, type: .info, Action.todo_list?.count ?? 0)
+        os_log("Knowledge Items: %d", log: agent_log, type: .info, Action.knowledge?.count ?? 0)
+        os_log("Available Tools: %d", log: agent_log, type: .info, Action.available_tools?.count ?? 0)
+        os_log("Chat History Items: %d", log: agent_log, type: .info, Action.chat_history?.count ?? 0)
+        os_log("Tool Call Result: %@", log: agent_log, type: .info, Action.tool_call_result?.isEmpty == false ? "Present" : "None")
+        os_log("===========================================", log: agent_log, type: .info)
+        
         if let thought = Action.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8),
            let agent_thought = try? jsonDecoder.decode(AgentResponse.self, from: thought).agent_thought {
                 self.serverDelegate?.agentRespondedWithThought(thought: agent_thought)
@@ -80,6 +102,11 @@ struct NudgeAgent {
         let system_instructions: String = Action.system_instructions ?? "NO INSTRUCTIONS"
         
         let context = try buildContextFromState(Action)
+
+        // Log the context being sent to LLM in a pretty format
+        os_log("=== CONTEXT SENT TO LLM ===", log: agent_log, type: .info)
+        logPrettyContext(context)
+        os_log("===========================", log: agent_log, type: .info)
 
         guard let system_message_to_llm = ChatQuery.ChatCompletionMessageParam(role: .system, content: system_instructions),
               let developer_message_to_llm = ChatQuery.ChatCompletionMessageParam(role: .developer, content: context),
@@ -95,7 +122,12 @@ struct NudgeAgent {
             throw NudgeError.agentStateVarMissing(description: "The no_of_iteration doesn't exist")
         }
         
-        return try await performOpenAIRequestWithRetry(query: llm_query, iteration: iteration, maxRetries: 3)
+        let result = try await performOpenAIRequestWithRetry(query: llm_query, iteration: iteration, maxRetries: 3)
+        
+        // Log complete agent state at end of contact_llm
+        logCompleteAgentState(Action)
+        
+        return result
     }
     
     func tool_call(Action: NudgeAgentState) async throws -> PartialAgentState {
@@ -112,6 +144,21 @@ struct NudgeAgent {
         }
         
         let function_name = curr_tool.function.name
+        let function_arguments = curr_tool.function.arguments
+        
+        os_log("=== AGENT STATE LOG: tool_call node ===", log: agent_log, type: .info)
+        os_log("Iteration: %d | Errors: %d", log: agent_log, type: .info, Action.no_of_iteration ?? 0, Action.no_of_errors ?? 0)
+        os_log("User Query: %@", log: agent_log, type: .info, Action.user_query ?? "None")
+        os_log("Current App State: %@", log: agent_log, type: .info, Action.current_application_state?.isEmpty == false ? "Present (\(Action.current_application_state?.count ?? 0) chars)" : "None")
+        os_log("Todo Items: %d", log: agent_log, type: .info, Action.todo_list?.count ?? 0)
+        os_log("Knowledge Items: %d", log: agent_log, type: .info, Action.knowledge?.count ?? 0)
+        os_log("Available Tools: %d", log: agent_log, type: .info, Action.available_tools?.count ?? 0)
+        os_log("Chat History Items: %d", log: agent_log, type: .info, Action.chat_history?.count ?? 0)
+        os_log("Tool Call Result: %@", log: agent_log, type: .info, Action.tool_call_result?.isEmpty == false ? "Present" : "None")
+        os_log("Tool Being Called: %@", log: agent_log, type: .info, function_name)
+        os_log("Tool Arguments: %@", log: agent_log, type: .info, function_arguments)
+        os_log("==========================================", log: agent_log, type: .info)
+        
         os_log("Executing tool: %@", log: log, type: .info, function_name)
         self.serverDelegate?.agentCalledTool(toolName: function_name)
         
@@ -122,36 +169,37 @@ struct NudgeAgent {
         }
         let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
         
+        let result: PartialAgentState
         do {
             switch (curr_tool.function.name) {
             case "get_ui_elements":
                 let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.getUIElements(arguments: arguemnt_dict)
                 let server_response = formatUIElementsToString(ui_element_tree)
-                return [
+                result = [
                     "tool_call_result": "Called tool get_ui_elemets. It has returned the updated application state which is stored in current_application_state.",
                     "current_application_state": server_response,
                     "no_of_iteration": iterations + 1
                 ]
             case "click_element_by_id":
-                let result = try await NudgeLibrary.shared.clickElement(arguments: arguemnt_dict)
-                let uiTree = result.uiTree
-                if !result.uiTree.isEmpty {
+                let clickResult = try await NudgeLibrary.shared.clickElement(arguments: arguemnt_dict)
+                let uiTree = clickResult.uiTree
+                if !clickResult.uiTree.isEmpty {
                     let server_response = formatUIElementsToString(uiTree)
-                    return [
-                        "tool_call_result": "Called tool click_element_by_id. \(result.message) It has returned the ui tree with the element that you clicked as root.",
+                    result = [
+                        "tool_call_result": "Called tool click_element_by_id. \(clickResult.message) It has returned the ui tree with the element that you clicked as root.",
                         "current_application_state": server_response,
                         "no_of_iteration": iterations + 1
                     ]
                 } else {
-                    return [
-                        "tool_call_result": "Called tool click_element_by_id. \(result.message)",
+                    result = [
+                        "tool_call_result": "Called tool click_element_by_id. \(clickResult.message)",
                         "no_of_iteration": iterations + 1
                     ]
                 }
             case "update_ui_element_tree":
                 let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.updateUIElementTree(arguments: arguemnt_dict)
                 let server_response = formatUIElementsToString(ui_element_tree)
-                return [
+                result = [
                     "tool_call_result": "Called tool update_ui_element_tree.",
                     "current_application_state": server_response,
                     "no_of_iteration": iterations + 1
@@ -159,13 +207,13 @@ struct NudgeAgent {
             case "set_text_in_element" :
                 let ui_element_tree = try await NudgeLibrary.shared.setTextInElement(arguments: arguemnt_dict)
                 let server_response = formatUIElementsToString(ui_element_tree.uiTree)
-                return [
+                result = [
                     "tool_call_result": "Called tool set_text_in_element. Retured with message: \(ui_element_tree.message)",
                     "current_application_state": server_response,
                     "no_of_iteration": iterations + 1
                 ]
             default:
-                return [
+                result = [
                     "tool_call_result": "The tool with name \(function_name) is not implemented or not supported by the server. Please look into the available tools or ask user for more help",
                     "no_of_errors": errors + 1,
                     "no_of_iteration": iterations + 1
@@ -173,16 +221,37 @@ struct NudgeAgent {
             }
         } catch {
             let errorMessage = "The following error occured while performing the toolcall: \(error.localizedDescription)"
-            return [
+            result = [
                 "current_application_state": errorMessage,
                 "no_of_errors": errors + 1,
                 "no_of_iteration": iterations + 1
             ]
-            
         }
+        
+        // Log complete agent state at end of tool_call
+        logCompleteAgentState(Action)
+        
+        return result
     }
     
     func user_input(Action: NudgeAgentState) async throws -> PartialAgentState {
+        os_log("=== AGENT STATE LOG: user_input node ===", log: agent_log, type: .info)
+        os_log("Iteration: %d | Errors: %d", log: agent_log, type: .info, Action.no_of_iteration ?? 0, Action.no_of_errors ?? 0)
+        os_log("User Query: %@", log: agent_log, type: .info, Action.user_query ?? "None")
+        os_log("Current App State: %@", log: agent_log, type: .info, Action.current_application_state?.isEmpty == false ? "Present (\(Action.current_application_state?.count ?? 0) chars)" : "None")
+        os_log("Todo Items: %d", log: agent_log, type: .info, Action.todo_list?.count ?? 0)
+        os_log("Knowledge Items: %d", log: agent_log, type: .info, Action.knowledge?.count ?? 0)
+        os_log("Available Tools: %d", log: agent_log, type: .info, Action.available_tools?.count ?? 0)
+        os_log("Chat History Items: %d", log: agent_log, type: .info, Action.chat_history?.count ?? 0)
+        os_log("Tool Call Result: %@", log: agent_log, type: .info, Action.tool_call_result?.isEmpty == false ? "Present" : "None")
+        os_log("Temp User Response: %@", log: agent_log, type: .info, Action.temp_user_response ?? "None")
+        if let agent_outcome = Action.agent_outcome, let lastMessage = agent_outcome.last?.choices.first?.message.content {
+            os_log("Agent Outcome (Last Message): %@", log: agent_log, type: .info, lastMessage)
+        } else {
+            os_log("Agent Outcome: None", log: agent_log, type: .info)
+        }
+        os_log("==========================================", log: agent_log, type: .info)
+        
         os_log("Asking user for the input", log: log, type: .info)
         guard let agent_outcome = Action.agent_outcome,
               let message = agent_outcome.last?.choices.first?.message.content?.data(using: .utf8),
@@ -193,12 +262,28 @@ struct NudgeAgent {
         }
         
         let response: AgentResponse = try self.jsonDecoder.decode(AgentResponse.self, from: message)
-        return ["chat_history": ["agent: \(response.ask_user ?? "No question asked")", "user: \(userResponse)"]]
+        let result = ["chat_history": ["agent: \(response.ask_user ?? "No question asked")", "user: \(userResponse)"]]
+        
+        // Log complete agent state at end of user_input
+        logCompleteAgentState(Action)
+        
+        return result
     }
     
     // MARK: - Edge Conditions
     
     func edgeConditionForLLM(Action: NudgeAgentState) async throws -> String {
+        os_log("=== AGENT STATE LOG: edgeConditionForLLM ===", log: agent_log, type: .info)
+        os_log("Iteration: %d | Errors: %d", log: agent_log, type: .info, Action.no_of_iteration ?? 0, Action.no_of_errors ?? 0)
+        os_log("User Query: %@", log: agent_log, type: .info, Action.user_query ?? "None")
+        os_log("Current App State: %@", log: agent_log, type: .info, Action.current_application_state?.isEmpty == false ? "Present (\(Action.current_application_state?.count ?? 0) chars)" : "None")
+        os_log("Todo Items: %d", log: agent_log, type: .info, Action.todo_list?.count ?? 0)
+        os_log("Knowledge Items: %d", log: agent_log, type: .info, Action.knowledge?.count ?? 0)
+        os_log("Available Tools: %d", log: agent_log, type: .info, Action.available_tools?.count ?? 0)
+        os_log("Chat History Items: %d", log: agent_log, type: .info, Action.chat_history?.count ?? 0)
+        os_log("Tool Call Result: %@", log: agent_log, type: .info, Action.tool_call_result?.isEmpty == false ? "Present" : "None")
+        os_log("==========================================", log: agent_log, type: .info)
+        
         guard let errors = Action.no_of_errors,
               let iterations = Action.no_of_iteration else {
             self.serverDelegate?.agentFacedError(error: "Having trouble tracking execution state...")
@@ -207,11 +292,13 @@ struct NudgeAgent {
         
         if (errors > 5 || iterations > 30) {
             os_log("Agent execution limits reached - stopping (errors: %d, iterations: %d)", log: log, type: .info, errors, iterations)
+            logCompleteAgentState(Action)
             return "finish"
         }
         // Based on the agent outcome decide if we need to go to the tool_call or end it
         if (Action.agent_outcome?.last?.choices.first?.message.toolCalls?.count ?? 0 > 0) {
             os_log("Agent requesting tool execution", log: log, type: .info)
+            logCompleteAgentState(Action)
             return "tool_call"
         }
         
@@ -222,17 +309,23 @@ struct NudgeAgent {
         let message: AgentResponse = try JSONDecoder().decode(AgentResponse.self, from: response)
         if message.ask_user != nil {
             os_log("Agent needs user input", log: log, type: .info)
+            logCompleteAgentState(Action)
             return "ask_user"
         }
         if message.finished != nil {
             os_log("Agent completed task successfully", log: log, type: .info)
+            logCompleteAgentState(Action)
             return "finish"
         }
         
         if message.agent_thought != nil {
+            // Log complete agent state at end of edgeConditionForLLM
+            logCompleteAgentState(Action)
             return "llm_call"
         }
 
+        // Log complete agent state at end of edgeConditionForLLM
+        logCompleteAgentState(Action)
         return "finish"
     }
     
@@ -271,14 +364,23 @@ struct NudgeAgent {
         
         while retryCount <= maxRetries {
             do {
-                
                 let response = try await self.openAIClient.chats(query: query)
                 os_log("OpenAI request successful", log: log, type: .info)
                 
-                return [
-                    "no_of_iteration": iteration + 1,
-                    "agent_outcome": response
-                ]
+                // Log LLM response details
+                if let message = response.choices.first?.message {
+                    os_log("=== LLM RESPONSE LOG ===", log: agent_log, type: .info)
+                    os_log("Message Content: %@", log: agent_log, type: .info, message.content ?? "None")
+                    os_log("Tool Calls Count: %d", log: agent_log, type: .info, message.toolCalls?.count ?? 0)
+                    if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
+                        for (index, toolCall) in toolCalls.enumerated() {
+                            os_log("Tool Call %d: %@ with args: %@", log: agent_log, type: .info, index + 1, toolCall.function.name, toolCall.function.arguments)
+                        }
+                    }
+                    os_log("========================", log: agent_log, type: .info)
+                }
+                
+                return ["no_of_iteration": iteration + 1, "agent_outcome": response]
                 
             } catch {
                 retryCount += 1
@@ -331,6 +433,141 @@ struct NudgeAgent {
     }
     
     // MARK: - Private helper functions
+    private func logPrettyContext(_ context: String) {
+        // Split context into sections and log them nicely
+        let sections = context.components(separatedBy: "\n\n")
+        
+        for section in sections {
+            if section.isEmpty { continue }
+            
+            let lines = section.components(separatedBy: "\n")
+            if let firstLine = lines.first {
+                if firstLine.hasPrefix("##") {
+                    // This is a section header
+                    os_log("%@", log: agent_log, type: .info, firstLine)
+                    if lines.count > 1 {
+                        let content = lines.dropFirst().joined(separator: "\n")
+                        // Split long content into chunks for better readability
+                        if content.count > 500 {
+                            let chunks = content.chunked(into: 400)
+                            for (index, chunk) in chunks.enumerated() {
+                                os_log("  [Part %d]: %@", log: agent_log, type: .info, index + 1, chunk)
+                            }
+                        } else {
+                            os_log("  %@", log: agent_log, type: .info, content)
+                        }
+                    }
+                } else {
+                    // Regular content
+                    if section.count > 500 {
+                        let chunks = section.chunked(into: 400)
+                        for (index, chunk) in chunks.enumerated() {
+                            os_log("[Part %d]: %@", log: agent_log, type: .info, index + 1, chunk)
+                        }
+                    } else {
+                        os_log("%@", log: agent_log, type: .info, section)
+                    }
+                }
+            }
+        }
+    }
+    
+    private func logCompleteAgentState(_ state: NudgeAgentState) {
+        os_log("=== COMPLETE AGENT STATE DUMP ===", log: agent_log, type: .info)
+        
+        // Basic counters
+        os_log("Iteration: %d", log: agent_log, type: .info, state.no_of_iteration ?? 0)
+        os_log("Errors: %d", log: agent_log, type: .info, state.no_of_errors ?? 0)
+        
+        // User query
+        os_log("User Query: %@", log: agent_log, type: .info, state.user_query ?? "None")
+        
+        // System instructions (truncated)
+        if let instructions = state.system_instructions {
+            let truncated = instructions.count > 100 ? String(instructions.prefix(100)) + "..." : instructions
+            os_log("System Instructions: %@", log: agent_log, type: .info, truncated)
+        } else {
+            os_log("System Instructions: None", log: agent_log, type: .info)
+        }
+        
+        // Rules (truncated)
+        if let rules = state.rules {
+            let truncated = rules.count > 100 ? String(rules.prefix(100)) + "..." : rules
+            os_log("Rules: %@", log: agent_log, type: .info, truncated)
+        } else {
+            os_log("Rules: None", log: agent_log, type: .info)
+        }
+        
+        // Knowledge
+        if let knowledge = state.knowledge, !knowledge.isEmpty {
+            os_log("Knowledge (%d items):", log: agent_log, type: .info, knowledge.count)
+            for (index, item) in knowledge.enumerated() {
+                let truncated = item.count > 80 ? String(item.prefix(80)) + "..." : item
+                os_log("  %d: %@", log: agent_log, type: .info, index + 1, truncated)
+            }
+        } else {
+            os_log("Knowledge: Empty", log: agent_log, type: .info)
+        }
+        
+        // Todo list
+        if let todoList = state.todo_list, !todoList.isEmpty {
+            os_log("Todo List (%d items):", log: agent_log, type: .info, todoList.count)
+            for (index, todo) in todoList.enumerated() {
+                os_log("  %d: %@", log: agent_log, type: .info, index + 1, todo)
+            }
+        } else {
+            os_log("Todo List: Empty", log: agent_log, type: .info)
+        }
+        
+        // Current application state (truncated)
+        if let appState = state.current_application_state {
+            let truncated = appState.count > 200 ? String(appState.prefix(200)) + "..." : appState
+            os_log("Current Application State (%d chars): %@", log: agent_log, type: .info, appState.count, truncated)
+        } else {
+            os_log("Current Application State: None", log: agent_log, type: .info)
+        }
+        
+        // Agent outcome
+        if let outcomes = state.agent_outcome, !outcomes.isEmpty {
+            os_log("Agent Outcomes (%d):", log: agent_log, type: .info, outcomes.count)
+            for (index, outcome) in outcomes.enumerated() {
+                if let content = outcome.choices.first?.message.content {
+                    let truncated = content.count > 100 ? String(content.prefix(100)) + "..." : content
+                    os_log("  %d: %@", log: agent_log, type: .info, index + 1, truncated)
+                }
+                if let toolCalls = outcome.choices.first?.message.toolCalls {
+                    os_log("  %d Tool Calls: %d", log: agent_log, type: .info, index + 1, toolCalls.count)
+                }
+            }
+        } else {
+            os_log("Agent Outcomes: None", log: agent_log, type: .info)
+        }
+        
+        // Tool call result
+        if let toolResult = state.tool_call_result {
+            let truncated = toolResult.count > 150 ? String(toolResult.prefix(150)) + "..." : toolResult
+            os_log("Tool Call Result: %@", log: agent_log, type: .info, truncated)
+        } else {
+            os_log("Tool Call Result: None", log: agent_log, type: .info)
+        }
+        
+        // Chat history
+        if let history = state.chat_history, !history.isEmpty {
+            os_log("Chat History (%d items):", log: agent_log, type: .info, history.count)
+            for (index, chat) in history.enumerated() {
+                let truncated = chat.count > 80 ? String(chat.prefix(80)) + "..." : chat
+                os_log("  %d: %@", log: agent_log, type: .info, index + 1, truncated)
+            }
+        } else {
+            os_log("Chat History: Empty", log: agent_log, type: .info)
+        }
+        
+        // Temp user response
+        os_log("Temp User Response: %@", log: agent_log, type: .info, state.temp_user_response ?? "None")
+        
+        os_log("================================", log: agent_log, type: .info)
+    }
+    
     private func buildContextFromState(_ state: NudgeAgentState) throws -> String {
         var contextComponents: [String] = []
         
