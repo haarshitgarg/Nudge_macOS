@@ -93,7 +93,6 @@ struct NudgeAgent {
         os_log("Tool Call Result: %@", log: agent_log, type: .info, Action.tool_call_result?.isEmpty == false ? "Present" : "None")
         os_log("===========================================", log: agent_log, type: .info)
         
-        os_log("Decoding agent thought from agent outcome", log: log, type: .info)
         if let thought = Action.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8),
            let agent_thought = try? jsonDecoder.decode(AgentResponse.self, from: thought).agent_thought {
                 self.serverDelegate?.agentRespondedWithThought(thought: agent_thought)
@@ -171,8 +170,6 @@ struct NudgeAgent {
         }
         os_log("Decoding tool arguments from JSON", log: log, type: .info)
         let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
-        os_log("Successfully decoded tool arguments from JSON", log: log, type: .info)
-
         let result: PartialAgentState
         do {
             switch (curr_tool.function.name) {
@@ -272,7 +269,6 @@ struct NudgeAgent {
         
         os_log("Decoding agent response from message", log: log, type: .info)
         let response: AgentResponse = try self.jsonDecoder.decode(AgentResponse.self, from: message)
-        os_log("Successfully decoded agent response from message", log: log, type: .info)
         let result = ["chat_history": ["agent: \(response.ask_user ?? "No question asked")", "user: \(userResponse)"]]
         
         // Log complete agent state at end of user_input
@@ -574,7 +570,7 @@ struct NudgeAgent {
         } else {
             os_log("Chat History: Empty", log: agent_log, type: .info)
         }
-        
+       
         // Clipboard content
         if let clipContent = state.clip_content {
             let truncated = clipContent.message.count > 80 ? String(clipContent.message.prefix(80)) + "..." : clipContent.message
