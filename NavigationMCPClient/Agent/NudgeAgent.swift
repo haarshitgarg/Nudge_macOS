@@ -97,6 +97,7 @@ struct NudgeAgent {
            let agent_thought = try? jsonDecoder.decode(AgentResponse.self, from: thought).agent_thought {
                 self.serverDelegate?.agentRespondedWithThought(thought: agent_thought)
         }
+        os_log("Successfully decoded agent thought", log: log, type: .info)
         
         let user_query: String = Action.user_query ?? "Testing 123"
         let system_instructions: String = Action.system_instructions ?? "NO INSTRUCTIONS"
@@ -167,8 +168,8 @@ struct NudgeAgent {
             self.serverDelegate?.agentFacedError(error: "Arguments for the tool call are not in correct format")
             throw NudgeError.cannotParseToolArguments
         }
+        os_log("Decoding tool arguments from JSON", log: log, type: .info)
         let arguemnt_dict: [String: Value]  = try jsonDecoder.decode([String: Value].self, from: argumentsData)
-        
         let result: PartialAgentState
         do {
             switch (curr_tool.function.name) {
@@ -196,12 +197,17 @@ struct NudgeAgent {
                         "no_of_iteration": iterations + 1
                     ]
                 }
-            case "update_ui_element_tree":
-                let ui_element_tree: [UIElementInfo] = try await NudgeLibrary.shared.updateUIElementTree(arguments: arguemnt_dict)
-                let server_response = formatUIElementsToString(ui_element_tree)
+            case "save_to_clipboard":
+                guard let message: String = arguemnt_dict["message"]?.stringValue,
+                      let meta_information: String = arguemnt_dict["meta_information"]?.stringValue
+                else {
+                    os_log("Failed to parse arguments for save_to_clipboard", log: log, type: .error)
+                    throw NudgeError.cannotParseToolArguments
+                }
+                let clip_info: ClipboardContent = ClipboardContent(message: message, meta_data: meta_information)
                 result = [
-                    "tool_call_result": "Called tool update_ui_element_tree.",
-                    "current_application_state": server_response,
+                    "tool_call_result": "Called tool save_to_clipboard. The clipboard information is stored in clip_content.",
+                    "clip_content": clip_info,
                     "no_of_iteration": iterations + 1
                 ]
             case "set_text_in_element" :
@@ -261,6 +267,7 @@ struct NudgeAgent {
             throw NudgeError.agentStateVarMissing(description: "User input node is missing variables")
         }
         
+        os_log("Decoding agent response from message", log: log, type: .info)
         let response: AgentResponse = try self.jsonDecoder.decode(AgentResponse.self, from: message)
         let result = ["chat_history": ["agent: \(response.ask_user ?? "No question asked")", "user: \(userResponse)"]]
         
@@ -290,7 +297,7 @@ struct NudgeAgent {
             throw NudgeError.agentStateVarMissing(description: "Missing iteration or error tracking variables")
         }
         
-        if (errors > 5 || iterations > 30) {
+        if (errors > 5 || iterations > 50) {
             os_log("Agent execution limits reached - stopping (errors: %d, iterations: %d)", log: log, type: .info, errors, iterations)
             logCompleteAgentState(Action)
             return "finish"
@@ -306,7 +313,9 @@ struct NudgeAgent {
             self.serverDelegate?.agentFacedError(error: "Having trouble understanding the next step...")
             throw NudgeError.agentStateVarMissing(description: "The agent_outcome has no content")
         }
+        os_log("Decoding agent response from response in edge condition", log: log, type: .info)
         let message: AgentResponse = try JSONDecoder().decode(AgentResponse.self, from: response)
+        os_log("Successfully decoded agent response from response in edge condition", log: log, type: .info)
         if message.ask_user != nil {
             os_log("Agent needs user input", log: log, type: .info)
             logCompleteAgentState(Action)
@@ -561,6 +570,14 @@ struct NudgeAgent {
         } else {
             os_log("Chat History: Empty", log: agent_log, type: .info)
         }
+       
+        // Clipboard content
+        if let clipContent = state.clip_content {
+            let truncated = clipContent.message.count > 80 ? String(clipContent.message.prefix(80)) + "..." : clipContent.message
+            os_log("Clipboard Content: %@ (Meta: %@)", log: agent_log, type: .info, truncated, clipContent.meta_data)
+        } else {
+            os_log("Clipboard Content: None", log: agent_log, type: .info)
+        }
         
         // Temp user response
         os_log("Temp User Response: %@", log: agent_log, type: .info, state.temp_user_response ?? "None")
@@ -602,7 +619,9 @@ struct NudgeAgent {
         
         // Add previous agent outcome if available
         if let message = state.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) {
+            os_log("Decoding agent message from content", log: log, type: .info)
             let agent_message = try self.jsonDecoder.decode(AgentResponse.self, from: message)
+            os_log("Successfully decoded agent message", log: log, type: .info)
             if let thought = agent_message.agent_thought {
                 contextComponents.append("## agent_thought\n\(thought)")
             }
@@ -617,6 +636,11 @@ struct NudgeAgent {
         if let chat_history = state.chat_history {
             contextComponents.append("## chat_history\n")
             contextComponents.append(contentsOf: chat_history)
+        }
+        
+        // Add clipboard content if available
+        if let clip_content = state.clip_content {
+            contextComponents.append("## clip_content\nMessage: \(clip_content.message)\nMeta Information: \(clip_content.meta_data)")
         }
         
         // Join all components with double newlines for clear separation

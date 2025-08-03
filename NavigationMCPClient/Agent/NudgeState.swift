@@ -86,4 +86,8 @@ struct NudgeAgentState: AgentState {
         value("temp_user_response")
     }
     
+    var clip_content: ClipboardContent? {
+        value("clip_content")
+    }
+    
 }
