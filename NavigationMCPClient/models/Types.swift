@@ -82,3 +82,12 @@ struct AgentResponse: Codable {
     let agent_thought: String?
 }
 
+struct ClipboardContent: Codable {
+    let message: String
+    let meta_data: String
+    
+    init(message: String, meta_data: String) {
+        self.message = message
+        self.meta_data = meta_data
+    }
+}
