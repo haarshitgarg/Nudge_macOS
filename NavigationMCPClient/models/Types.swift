@@ -82,6 +82,25 @@ struct AgentResponse: Codable {
     let agent_thought: String?
 }
 
+struct TodoList: Codable {
+    let todo_list: [String]
+    
+    func getFirst() -> String? {
+        return todo_list.first
+    }
+    
+    func removeFirst() -> TodoList {
+        var newList = todo_list
+        if !newList.isEmpty {
+            newList.removeFirst()
+        }
+        return TodoList(todo_list: newList)
+    }
+        
+}
+
+    
+
 struct ClipboardContent: Codable {
     let message: String
     let meta_data: String
