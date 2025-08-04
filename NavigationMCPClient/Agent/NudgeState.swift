@@ -25,7 +25,7 @@ struct NudgeAgentState: AgentState {
         self.data = initState
     }
     
-    var todo_list: [String]? {
+    var todo_list: TodoList? {
         value("todo_list")
     }
     
@@ -88,6 +88,10 @@ struct NudgeAgentState: AgentState {
     
     var clip_content: ClipboardContent? {
         value("clip_content")
+    }
+    
+    var todos_instructions: String? {
+        value("todos_instructions")
     }
     
 }
