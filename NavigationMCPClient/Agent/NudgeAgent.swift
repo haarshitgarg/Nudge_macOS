@@ -148,7 +148,7 @@ struct NudgeAgent {
         }
         os_log("Successfully decoded agent thought", log: log, type: .info)
         
-        let user_query: String = Action.user_query ?? "Testing 123"
+        let user_query: String = Action.todo_list?.getFirst() ?? "No todo found, notify user"
         let system_instructions: String = Action.system_instructions ?? "NO INSTRUCTIONS"
         
         let context = try buildContextFromState(Action)
@@ -235,7 +235,7 @@ struct NudgeAgent {
                 if !clickResult.uiTree.isEmpty {
                     let server_response = formatUIElementsToString(uiTree)
                     result = [
-                        "tool_call_result": "Called tool click_element_by_id. \(clickResult.message) It has returned the ui tree with the element that you clicked as root.",
+                        "tool_call_result": "Called tool click_element_by_id. \(clickResult.message).",
                         "current_application_state": server_response,
                         "no_of_iteration": iterations + 1
                     ]
@@ -367,24 +367,29 @@ struct NudgeAgent {
             throw NudgeError.agentStateVarMissing(description: "The agent_outcome has no content")
         }
         os_log("Decoding agent response from response in edge condition", log: log, type: .info)
-        let message: AgentResponse = try JSONDecoder().decode(AgentResponse.self, from: response)
-        os_log("Successfully decoded agent response from response in edge condition", log: log, type: .info)
-        if message.ask_user != nil {
-            os_log("Agent needs user input", log: log, type: .info)
-            logCompleteAgentState(Action)
-            return "ask_user"
-        }
-        if message.finished != nil {
-            os_log("Agent completed task successfully", log: log, type: .info)
-            logCompleteAgentState(Action)
-            return "finish"
-        }
-        
-        if message.agent_thought != nil {
-            // Log complete agent state at end of edgeConditionForLLM
-            logCompleteAgentState(Action)
+        os_log("Attempting to decode agent response from response: %{public}@", log: log, type: .info, String(data: response, encoding: .utf8) ?? "nil")
+        do {
+            os_log("Successfully decoded agent response from response in edge condition", log: log, type: .info)
+            let message: AgentResponse = try JSONDecoder().decode(AgentResponse.self, from: response)
+            if message.ask_user != nil {
+                os_log("Agent needs user input", log: log, type: .info)
+                logCompleteAgentState(Action)
+                return "ask_user"
+            }
+            if message.finished != nil {
+                os_log("Agent completed task successfully", log: log, type: .info)
+                logCompleteAgentState(Action)
+                return "finish"
+            }
+            if message.agent_thought != nil {
+                // Log complete agent state at end of edgeConditionForLLM
+                logCompleteAgentState(Action)
+                return "llm_call"
+            }
+        } catch {
             return "llm_call"
         }
+        
 
         // Log complete agent state at end of edgeConditionForLLM
         logCompleteAgentState(Action)
@@ -421,7 +426,6 @@ struct NudgeAgent {
         }
         
         // Initialize other state properties
-        self.state.data["todo_list"] = [String]()
         self.state.data["knowledge"] = [String]()
         self.state.data["no_of_iteration"] = 0
         self.state.data["no_of_errors"] = 0
@@ -515,11 +519,6 @@ struct NudgeAgent {
         if let knowledge = state.knowledge, !knowledge.isEmpty {
             let knowledgeString = knowledge.joined(separator: "\n- ")
             contextComponents.append("## System Knowledge\n- \(knowledgeString)")
-        }
-        
-        // Add user query
-        if let user_query = state.todo_list?.getFirst() {
-            contextComponents.append("## user_query\n\(user_query)")
         }
         
         // Add current application UI state if available
