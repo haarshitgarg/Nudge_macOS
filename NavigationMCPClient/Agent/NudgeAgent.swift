@@ -132,15 +132,7 @@ struct NudgeAgent {
     }
 
     func contact_llm(Action: NudgeAgentState) async throws -> PartialAgentState {
-        os_log("=== AGENT STATE LOG: contact_llm node ===", log: agent_log, type: .info)
-        os_log("Iteration: %d | Errors: %d", log: agent_log, type: .info, Action.no_of_iteration ?? 0, Action.no_of_errors ?? 0)
-        os_log("User Query: %@", log: agent_log, type: .info, Action.user_query ?? "None")
-        os_log("Current App State: %@", log: agent_log, type: .info, Action.current_application_state?.isEmpty == false ? "Present (\(Action.current_application_state?.count ?? 0) chars)" : "None")
-        os_log("Knowledge Items: %d", log: agent_log, type: .info, Action.knowledge?.count ?? 0)
-        os_log("Available Tools: %d", log: agent_log, type: .info, Action.available_tools?.count ?? 0)
-        os_log("Chat History Items: %d", log: agent_log, type: .info, Action.chat_history?.count ?? 0)
-        os_log("Tool Call Result: %@", log: agent_log, type: .info, Action.tool_call_result?.isEmpty == false ? "Present" : "None")
-        os_log("===========================================", log: agent_log, type: .info)
+        logAgentState(Action, context: "contact_llm node")
         
         if let thought = Action.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8),
            let agent_thought = try? jsonDecoder.decode(AgentResponse.self, from: thought).agent_thought {
@@ -196,19 +188,10 @@ struct NudgeAgent {
         let function_name = curr_tool.function.name
         let function_arguments = curr_tool.function.arguments
         
-        os_log("=== AGENT STATE LOG: tool_call node ===", log: agent_log, type: .info)
-        os_log("Iteration: %d | Errors: %d", log: agent_log, type: .info, Action.no_of_iteration ?? 0, Action.no_of_errors ?? 0)
-        os_log("User Query: %@", log: agent_log, type: .info, Action.user_query ?? "None")
-        os_log("Current App State: %@", log: agent_log, type: .info, Action.current_application_state?.isEmpty == false ? "Present (\(Action.current_application_state?.count ?? 0) chars)" : "None")
-        os_log("Knowledge Items: %d", log: agent_log, type: .info, Action.knowledge?.count ?? 0)
-        os_log("Available Tools: %d", log: agent_log, type: .info, Action.available_tools?.count ?? 0)
-        os_log("Chat History Items: %d", log: agent_log, type: .info, Action.chat_history?.count ?? 0)
-        os_log("Tool Call Result: %@", log: agent_log, type: .info, Action.tool_call_result?.isEmpty == false ? "Present" : "None")
+        //logAgentState(Action, context: "tool_call node")
         os_log("Tool Being Called: %@", log: agent_log, type: .info, function_name)
         os_log("Tool Arguments: %@", log: agent_log, type: .info, function_arguments)
-        os_log("==========================================", log: agent_log, type: .info)
         
-        os_log("Executing tool: %@", log: log, type: .info, function_name)
         self.serverDelegate?.agentCalledTool(toolName: function_name)
         
         guard let argumentsData = curr_tool.function.arguments.data(using: .utf8) else {
@@ -283,27 +266,19 @@ struct NudgeAgent {
         }
         
         // Log complete agent state at end of tool_call
-        logCompleteAgentState(Action)
+        //logCompleteAgentState(Action)
         
         return result
     }
     
     func user_input(Action: NudgeAgentState) async throws -> PartialAgentState {
-        os_log("=== AGENT STATE LOG: user_input node ===", log: agent_log, type: .info)
-        os_log("Iteration: %d | Errors: %d", log: agent_log, type: .info, Action.no_of_iteration ?? 0, Action.no_of_errors ?? 0)
-        os_log("User Query: %@", log: agent_log, type: .info, Action.user_query ?? "None")
-        os_log("Current App State: %@", log: agent_log, type: .info, Action.current_application_state?.isEmpty == false ? "Present (\(Action.current_application_state?.count ?? 0) chars)" : "None")
-        os_log("Knowledge Items: %d", log: agent_log, type: .info, Action.knowledge?.count ?? 0)
-        os_log("Available Tools: %d", log: agent_log, type: .info, Action.available_tools?.count ?? 0)
-        os_log("Chat History Items: %d", log: agent_log, type: .info, Action.chat_history?.count ?? 0)
-        os_log("Tool Call Result: %@", log: agent_log, type: .info, Action.tool_call_result?.isEmpty == false ? "Present" : "None")
-        os_log("Temp User Response: %@", log: agent_log, type: .info, Action.temp_user_response ?? "None")
+        //logAgentState(Action, context: "user_input node")
+        //os_log("Temp User Response: %@", log: agent_log, type: .info, Action.temp_user_response ?? "None")
         if let agent_outcome = Action.agent_outcome, let lastMessage = agent_outcome.last?.choices.first?.message.content {
-            os_log("Agent Outcome (Last Message): %@", log: agent_log, type: .info, lastMessage)
+            //os_log("Agent Outcome (Last Message): %@", log: agent_log, type: .info, lastMessage)
         } else {
-            os_log("Agent Outcome: None", log: agent_log, type: .info)
+            //os_log("Agent Outcome: None", log: agent_log, type: .info)
         }
-        os_log("==========================================", log: agent_log, type: .info)
         
         os_log("Asking user for the input", log: log, type: .info)
         guard let agent_outcome = Action.agent_outcome,
@@ -319,7 +294,7 @@ struct NudgeAgent {
         let result = ["chat_history": ["agent: \(response.ask_user ?? "No question asked")", "user: \(userResponse)"]]
         
         // Log complete agent state at end of user_input
-        logCompleteAgentState(Action)
+        //logCompleteAgentState(Action)
         
         return result
     }
@@ -334,15 +309,7 @@ struct NudgeAgent {
     }
 
     func edgeConditionForLLM(Action: NudgeAgentState) async throws -> String {
-        os_log("=== AGENT STATE LOG: edgeConditionForLLM ===", log: agent_log, type: .info)
-        os_log("Iteration: %d | Errors: %d", log: agent_log, type: .info, Action.no_of_iteration ?? 0, Action.no_of_errors ?? 0)
-        os_log("User Query: %@", log: agent_log, type: .info, Action.user_query ?? "None")
-        os_log("Current App State: %@", log: agent_log, type: .info, Action.current_application_state?.isEmpty == false ? "Present (\(Action.current_application_state?.count ?? 0) chars)" : "None")
-        os_log("Knowledge Items: %d", log: agent_log, type: .info, Action.knowledge?.count ?? 0)
-        os_log("Available Tools: %d", log: agent_log, type: .info, Action.available_tools?.count ?? 0)
-        os_log("Chat History Items: %d", log: agent_log, type: .info, Action.chat_history?.count ?? 0)
-        os_log("Tool Call Result: %@", log: agent_log, type: .info, Action.tool_call_result?.isEmpty == false ? "Present" : "None")
-        os_log("==========================================", log: agent_log, type: .info)
+        //logAgentState(Action, context: "edgeConditionForLLM")
         
         guard let errors = Action.no_of_errors,
               let iterations = Action.no_of_iteration else {
@@ -352,13 +319,13 @@ struct NudgeAgent {
         
         if (errors > 5 || iterations > 50) {
             os_log("Agent execution limits reached - stopping (errors: %d, iterations: %d)", log: log, type: .info, errors, iterations)
-            logCompleteAgentState(Action)
+            //logCompleteAgentState(Action)
             return "finish"
         }
         // Based on the agent outcome decide if we need to go to the tool_call or end it
         if (Action.agent_outcome?.last?.choices.first?.message.toolCalls?.count ?? 0 > 0) {
             os_log("Agent requesting tool execution", log: log, type: .info)
-            logCompleteAgentState(Action)
+            //logCompleteAgentState(Action)
             return "tool_call"
         }
         
@@ -373,17 +340,17 @@ struct NudgeAgent {
             let message: AgentResponse = try JSONDecoder().decode(AgentResponse.self, from: response)
             if message.ask_user != nil {
                 os_log("Agent needs user input", log: log, type: .info)
-                logCompleteAgentState(Action)
+                //logCompleteAgentState(Action)
                 return "ask_user"
             }
             if message.finished != nil {
                 os_log("Agent completed task successfully", log: log, type: .info)
-                logCompleteAgentState(Action)
+                //logCompleteAgentState(Action)
                 return "finish"
             }
             if message.agent_thought != nil {
                 // Log complete agent state at end of edgeConditionForLLM
-                logCompleteAgentState(Action)
+                //logCompleteAgentState(Action)
                 return "llm_call"
             }
         } catch {
@@ -392,7 +359,7 @@ struct NudgeAgent {
         
 
         // Log complete agent state at end of edgeConditionForLLM
-        logCompleteAgentState(Action)
+        //logCompleteAgentState(Action)
         return "finish"
     }
     
@@ -610,6 +577,19 @@ struct NudgeAgent {
 
 // MARK: - Logging Extension
 extension NudgeAgent {
+    private func logAgentState(_ Action: NudgeAgentState, context: String = "") {
+        let contextPrefix = context.isEmpty ? "" : "\(context): "
+        os_log("=== AGENT STATE LOG: %@===", log: agent_log, type: .info, contextPrefix)
+        os_log("Iteration: %d | Errors: %d", log: agent_log, type: .info, Action.no_of_iteration ?? 0, Action.no_of_errors ?? 0)
+        os_log("User Query: %@", log: agent_log, type: .info, Action.user_query ?? "None")
+        os_log("Current App State: %@", log: agent_log, type: .info, Action.current_application_state?.isEmpty == false ? "Present (\(Action.current_application_state?.count ?? 0) chars)" : "None")
+        os_log("Knowledge Items: %d", log: agent_log, type: .info, Action.knowledge?.count ?? 0)
+        os_log("Available Tools: %d", log: agent_log, type: .info, Action.available_tools?.count ?? 0)
+        os_log("Chat History Items: %d", log: agent_log, type: .info, Action.chat_history?.count ?? 0)
+        os_log("Tool Call Result: %@", log: agent_log, type: .info, Action.tool_call_result?.isEmpty == false ? "Present" : "None")
+        os_log("==========================================", log: agent_log, type: .info)
+    }
+    
     private func logPrettyContext(_ context: String) {
         // Split context into sections and log them nicely
         let sections = context.components(separatedBy: "\n\n")
