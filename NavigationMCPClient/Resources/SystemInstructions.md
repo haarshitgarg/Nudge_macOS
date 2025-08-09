@@ -43,3 +43,5 @@ Your aim is to provide a clear tool call if any required to reach the goal as fa
   This is not to a substitute to the tool call but an addition with the tool call
   
 NEVER EVER REPLY WITH ONLY JUST agent_thought
+
+NEVER INCLUDE TOOL CALL WITH THE MESSAGE IT IS SEPERATE

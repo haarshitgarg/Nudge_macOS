@@ -21,11 +21,48 @@ final class Nudge_macOSUITests: XCTestCase {
     override func tearDownWithError() throws {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
         
+        // If test failed, capture agent state
+        let testName = self.name
+        let hasFailures = testRun?.failureCount ?? 0 > 0
+        if hasFailures {
+            captureAgentStateOnFailure(testID: testName)
+        }
+        
+        
         // Close Safari if it's running
         let safari = XCUIApplication(bundleIdentifier: "com.apple.Safari")
         if safari.state == .runningForeground || safari.state == .runningBackground {
             safari.terminate()
         }
+    }
+    
+    private func captureAgentStateOnFailure(testID: String) {
+        // Use the microphone button to trigger agent state logging
+        // This is cleaner than using the text field since the mic button isn't actively used
+        
+        let app = XCUIApplication()
+        
+        // Look for the microphone button and click it to trigger debug logging
+        let micButton = app.buttons.matching(identifier: "mic.fill").firstMatch
+        if micButton.exists {
+            micButton.tap()
+            print("🎤 Clicked microphone button to trigger agent state dump for test: \(testID)")
+        } else {
+            // Fallback: look for any button with mic-related label
+            let micButtons = app.buttons.containing(NSPredicate(format: "identifier CONTAINS 'mic'"))
+            if micButtons.count > 0 {
+                micButtons.firstMatch.tap()
+                print("🎤 Clicked microphone button (fallback) to trigger agent state dump for test: \(testID)")
+            } else {
+                print("❌ Could not find microphone button to trigger agent state logging")
+            }
+        }
+        
+        // Give it a moment to process
+        sleep(5)
+        
+        print("📋 Attempted to capture agent state for failed test: \(testID)")
+        print("📁 Agent state should be saved to ~/Documents/NudgeUITestLogs/")
     }
 
     @MainActor
@@ -129,7 +166,7 @@ final class Nudge_macOSUITests: XCTestCase {
         chatTextField.tap()
         
         // Type the command to play Coffeezilla video on YouTube
-        chatTextField.typeText("Play any coffeezilla video on youtube in safari")
+        chatTextField.typeText("Play any coffeezilla video on epstien on youtube in safari")
         
         // Press Enter to submit the command
         app.typeKey(.enter, modifierFlags: [])
@@ -177,6 +214,106 @@ final class Nudge_macOSUITests: XCTestCase {
         let hasVideoControls = playButton.exists || pauseButton.exists || videoControls.exists
         XCTAssertTrue(hasVideoControls, "YouTube video should be loaded with play controls visible")
     }
+
+    @MainActor
+    func testToggleDarkLightMode() throws {
+        let app = XCUIApplication()
+        app.launch()
+        
+        // Wait for app to fully launch and show the floating panel
+        sleep(2)
+        
+        // Find the text input field
+        let chatTextField = app.textFields.firstMatch
+        XCTAssertTrue(chatTextField.waitForExistence(timeout: 5), "Chat text field should be available")
+        
+        // Tap the text field to focus it
+        chatTextField.tap()
+        
+        // Type the command to toggle to dark mode
+        chatTextField.typeText("Toggle to light mode")
+        
+        // Press Enter to submit the command
+        app.typeKey(.enter, modifierFlags: [])
+        
+        // Wait for the agent to process the command
+        let thinkingField = app.textFields["Press Esc to cancel"]
+        XCTAssertTrue(thinkingField.waitForExistence(timeout: 10), "Agent should enter thinking state")
+        
+        // Wait for task completion - should return to input state
+        let completedField = app.textFields["Type to Nudge"]
+        XCTAssertTrue(completedField.waitForExistence(timeout: 30), "Agent should complete dark mode toggle")
+        
+        // Wait for system to process the appearance change
+        sleep(3)
+        
+        // Clear the text field and test light mode toggle
+        chatTextField.tap()
+        chatTextField.typeText("Toggle to dark mode")
+        app.typeKey(.enter, modifierFlags: [])
+        
+        // Wait for agent to process second command
+        XCTAssertTrue(thinkingField.waitForExistence(timeout: 10), "Agent should enter thinking state for light mode")
+        
+        // Wait for task completion
+        XCTAssertTrue(completedField.waitForExistence(timeout: 30), "Agent should complete light mode toggle")
+        
+        // Wait for system to process the appearance change
+        sleep(3)
+        
+        // Verify the test completed successfully - both commands were processed
+        XCTAssertTrue(chatTextField.exists, "Chat interface should still be available after appearance toggles")
+    }
+
+//    @MainActor
+//    func testWriteEmailWithTimestamp() throws {
+//        let app = XCUIApplication()
+//        app.launch()
+//        
+//        // Wait for app to fully launch and show the floating panel
+//        sleep(2)
+//        
+//        // Find the text input field
+//        let chatTextField = app.textFields.firstMatch
+//        XCTAssertTrue(chatTextField.waitForExistence(timeout: 5), "Chat text field should be available")
+//        
+//        // Tap the text field to focus it
+//        chatTextField.tap()
+//        
+//        // Get current timestamp for the email content
+//        let formatter = DateFormatter()
+//        formatter.dateStyle = .medium
+//        formatter.timeStyle = .medium
+//        let timestamp = formatter.string(from: Date())
+//        
+//        // Type the command to write an email with timestamp and nudge name
+//        let emailCommand = "Write an email to gargharshit64@gmail.com with subject 'Nudge Test Email' and content 'This email was sent by Nudge at \(timestamp). Application: Nudge macOS'"
+//        chatTextField.typeText(emailCommand)
+//        
+//        // Press Enter to submit the command
+//        app.typeKey(.enter, modifierFlags: [])
+//        
+//        // Wait for the agent to process the command
+//        let thinkingField = app.textFields["Press Esc to cancel"]
+//        XCTAssertTrue(thinkingField.waitForExistence(timeout: 10), "Agent should enter thinking state")
+//        
+//        // Wait for task completion - should return to input state
+//        let completedField = app.textFields["Type to Nudge"]
+//        XCTAssertTrue(completedField.waitForExistence(timeout: 50), "Agent should complete email writing task")
+//        
+//        // Wait for Mail app to potentially launch and process
+//        sleep(5)
+//        
+//        // Verify Mail app is running (the agent should have opened Mail to compose the email)
+//        let mailApp = XCUIApplication(bundleIdentifier: "com.apple.mail")
+//        XCTAssertTrue(mailApp.wait(for: .runningForeground, timeout: 15), "Mail app should be launched")
+//        
+//        // Verify the test completed successfully
+//        XCTAssertTrue(chatTextField.exists, "Chat interface should still be available after email task")
+//        
+//        // Close Mail app to clean up for next test
+//        mailApp.terminate()
+//    }
 
     @MainActor
     func testLaunchPerformance() throws {
