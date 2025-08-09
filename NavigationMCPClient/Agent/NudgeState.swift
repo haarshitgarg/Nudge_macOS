@@ -94,4 +94,8 @@ struct NudgeAgentState: AgentState {
         value("todos_instructions")
     }
     
+    var rag_input: String? {
+        value("rag_input")
+    }
+    
 }

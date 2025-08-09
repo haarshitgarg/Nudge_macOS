@@ -128,7 +128,7 @@ struct NudgeAgent {
     func get_rag_context(Action: NudgeAgentState) async throws -> PartialAgentState {
         // TODO: Implement the logic to get rag context
         os_log("Nothing implemented in rag, will do later", log: log, type: .debug)
-        return [:]
+        return ["rag_input":"Make sure when you need to search for videos or creators on youtube, you put the query directly in the URL itself. It makes it much faster than opening the app and then searching it"]
     }
 
     func contact_llm(Action: NudgeAgentState) async throws -> PartialAgentState {
@@ -517,6 +517,11 @@ struct NudgeAgent {
         // Add clipboard content if available
         if let clip_content = state.clip_content {
             contextComponents.append("## clip_content\nMessage: \(clip_content.message)\nMeta Information: \(clip_content.meta_data)")
+        }
+        
+        // RAG CONTEXT
+        if let rag_input = state.rag_input {
+            contextComponents.append("## Use full information about the task\n\(rag_input)")
         }
         
         // Join all components with double newlines for clear separation
