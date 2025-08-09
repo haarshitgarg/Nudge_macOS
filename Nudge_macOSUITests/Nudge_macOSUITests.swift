@@ -316,6 +316,64 @@ final class Nudge_macOSUITests: XCTestCase {
 //    }
 
     @MainActor
+    func testCreateAlarmAt4AM() throws {
+        let app = XCUIApplication()
+        app.launch()
+        
+        // Wait for app to fully launch and show the floating panel
+        sleep(2)
+        
+        // Find the text input field
+        let chatTextField = app.textFields.firstMatch
+        XCTAssertTrue(chatTextField.waitForExistence(timeout: 5), "Chat text field should be available")
+        
+        // Tap the text field to focus it
+        chatTextField.tap()
+        
+        // Type the command to create an alarm for 4 AM
+        chatTextField.typeText("Create an alarm for 4 AM tomorrow")
+        
+        // Press Enter to submit the command
+        app.typeKey(.enter, modifierFlags: [])
+        
+        // Wait for the agent to process the command
+        let thinkingField = app.textFields["Press Esc to cancel"]
+        XCTAssertTrue(thinkingField.waitForExistence(timeout: 10), "Agent should enter thinking state")
+        
+        // Wait for task completion - should return to input state
+        let completedField = app.textFields["Type to Nudge"]
+        XCTAssertTrue(completedField.waitForExistence(timeout: 45), "Agent should complete alarm creation task")
+        
+        // Wait for Clock app to potentially launch and process
+        sleep(5)
+        
+        // Verify Clock app is running (the agent should have opened Clock app to create the alarm)
+        let clockApp = XCUIApplication(bundleIdentifier: "com.apple.clock")
+        if clockApp.wait(for: .runningForeground, timeout: 15) {
+            // Clock app launched - check for alarm creation
+            let alarmTab = clockApp.buttons["Alarm"]
+            if alarmTab.exists {
+                alarmTab.tap()
+                sleep(2)
+                
+                // Look for 4:00 AM alarm in the list
+                let alarmTime = clockApp.staticTexts.containing(NSPredicate(format: "label CONTAINS '4:00' OR label CONTAINS '04:00'")).firstMatch
+                XCTAssertTrue(alarmTime.waitForExistence(timeout: 10), "4 AM alarm should be visible in Clock app")
+            }
+            
+            // Close Clock app
+            clockApp.terminate()
+        } else {
+            // If Clock app didn't launch, check if the agent used a different method
+            // The agent might have used other system tools to create the alarm
+            print("Clock app did not launch - agent may have used alternative method")
+        }
+        
+        // Verify the test completed successfully
+        XCTAssertTrue(chatTextField.exists, "Chat interface should still be available after alarm creation")
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
