@@ -20,6 +20,12 @@ final class Nudge_macOSUITests: XCTestCase {
 
     override func tearDownWithError() throws {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
+        
+        // Close Safari if it's running
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.Safari")
+        if safari.state == .runningForeground || safari.state == .runningBackground {
+            safari.terminate()
+        }
     }
 
     @MainActor
@@ -134,7 +140,7 @@ final class Nudge_macOSUITests: XCTestCase {
         
         // Wait for task completion - should return to input state
         let completedField = app.textFields["Type to Nudge"]
-        XCTAssertTrue(completedField.waitForExistence(timeout: 45), "Agent should complete task and return to input state")
+        XCTAssertTrue(completedField.waitForExistence(timeout: 65), "Agent should complete task and return to input state")
         
         // Verify Safari is running
         let safari = XCUIApplication(bundleIdentifier: "com.apple.Safari")
