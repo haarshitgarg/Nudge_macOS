@@ -50,14 +50,29 @@ struct InputView: View {
                     .disabled(!chatViewModel.uiState.isInteractionEnabled)
                     .onSubmit {sendAction()}
                 
-                // SPEECH BUTTON - Disappears instantly
-                Button(action: {}) {
+                // SPEECH BUTTON - Triggers debug logging when pressed
+                Button(action: {
+                    // For now, the microphone button triggers agent state debug logging
+                    // This is useful for UI tests and debugging
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "HH:mm:ss"
+                    let timestamp = formatter.string(from: Date())
+                    let debugMessage = "__DEBUG_DUMP_STATE_FOR_TEST__MicButton_\(timestamp)"
+                    
+                    Task {
+                        do {
+                            try await self.chatViewModel.sendMessage(debugMessage)
+                            os_log("🎤 Debug state dump triggered via microphone button", log: log, type: .info)
+                        } catch {
+                            os_log("Failed to send debug message: %@", log: log, type: .fault, error.localizedDescription)
+                        }
+                    }
+                }) {
                     Image(systemName: "mic.fill")
                         .font(.title2)
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
-                .disabled(!chatViewModel.uiState.isInteractionEnabled)
             }
             
             //.shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)

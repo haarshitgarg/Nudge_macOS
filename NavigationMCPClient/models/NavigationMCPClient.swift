@@ -53,8 +53,6 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         os_log("Processing user message: %@", log: log, type: .info, message)
         Task {
             do {
-                self.callbackClient?.onLLMLoopStarted()
-                sleep(1)
                 
                 var runableConfig: RunnableConfig
                 var final_state: NudgeAgentState?
@@ -66,6 +64,17 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                     configs[threadId] = runableConfig
                 }
                 
+                // Check for debug command before processing
+                if message.hasPrefix("__DEBUG_DUMP_STATE_FOR_TEST__") {
+                    let testID = String(message.dropFirst("__DEBUG_DUMP_STATE_FOR_TEST__".count))
+                    os_log("🔍 Debug command received for test: %@", log: log, type: .info, testID)
+                    try self.nudgeAgent.writeCompleteAgentStateToFile(testID: testID, reason: "Debug dump requested by UI test", config: runableConfig)
+                    return
+                }
+                
+                self.callbackClient?.onLLMLoopStarted()
+                sleep(1)
+
                 self.nudgeAgent.state.data["user_query"] = message
                 let initVal: ( lastState: NudgeAgentState?, nodes: [String]) = (nil, [])
                 let result = try await self.nudgeAgent.agent?.stream(.args(self.nudgeAgent.state.data), config: runableConfig).reduce(initVal, { partialResult, output in
