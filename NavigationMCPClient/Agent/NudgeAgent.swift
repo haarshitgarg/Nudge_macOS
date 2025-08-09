@@ -128,7 +128,7 @@ struct NudgeAgent {
     func get_rag_context(Action: NudgeAgentState) async throws -> PartialAgentState {
         // TODO: Implement the logic to get rag context
         os_log("Nothing implemented in rag, will do later", log: log, type: .debug)
-        return ["rag_input":"Make sure when you need to search for videos or creators on youtube, you put the query directly in the URL itself. It makes it much faster than opening the app and then searching it"]
+        return ["rag_input":"Make sure when you need to search for videos or creators on youtube, you put the query directly in the URL itself. It makes it much faster than opening the app and then searching it \n\n  When you want to play a vide check if the link in description has watch in it. It generally means this will link will play the video \n\n If you find information that is very specific you can store that information in the clipboard to be used later"]
     }
 
     func contact_llm(Action: NudgeAgentState) async throws -> PartialAgentState {
@@ -577,6 +577,64 @@ struct NudgeAgent {
         //self.agent?.interrupt("Agent interrupted by user")
         self.agent?.pause()
         os_log("Agent execution interrupted", log: log, type: .info)
+    }
+    
+    public func writeCompleteAgentStateToFile(testID: String, reason: String = "Test failure", config: RunnableConfig) throws {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let timestamp = formatter.string(from: Date())
+        
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let logDir = documentsPath.appendingPathComponent("NudgeUITestLogs")
+        try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
+        
+        let logFile = logDir.appendingPathComponent("\(testID)_\(timestamp)_complete_agent_state.json")
+        
+        guard let currState = try self.agent?.getCurrentState(config: config) else {
+            throw NudgeError.agentNotInitialized(description: "Agent is not initialized when tried to get the current state logged")
+        }
+
+        var logContent = "=== COMPLETE AGENT STATE DUMP ===\n"
+        logContent += "Test ID: \(testID)\n"
+        logContent += "Reason: \(reason)\n"
+        logContent += "Timestamp: \(Date())\n"
+        logContent += "Agent Data Keys: \(Array(currState.data.keys).count)\n\n"
+        
+        // Iterate through all agent state data without any truncation
+        for key in Array(currState.data.keys).sorted() {
+            let value = currState.data[key]!
+            
+            if key == "agent_outcome" {
+                // Special handling for agent_outcome to show only messages and tool calls
+                if let outcomes = currState.value(key) as [ChatResult]? {
+                    logContent += "\(key) (\(outcomes.count) outcomes):\n"
+                    for (index, outcome) in outcomes.enumerated() {
+                        if let message = outcome.choices.first?.message {
+                            logContent += "  \(index + 1). Message: \(message.content ?? "None")\n"
+                            if let toolCalls = message.toolCalls, !toolCalls.isEmpty {
+                                logContent += "  \(index + 1). Tool Calls (\(toolCalls.count)):\n"
+                                for toolCall in toolCalls {
+                                    logContent += "    - \(toolCall.function.name): \(toolCall.function.arguments)\n"
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    logContent += "\(key): \(String(describing: value))\n"
+                }
+            } else {
+                logContent += "\(key): \(String(describing: value))\n"
+            }
+        }
+        
+        logContent += "\n==============================="
+        
+        do {
+            try logContent.write(to: logFile, atomically: true, encoding: .utf8)
+            os_log("✅ Complete agent state written to file: %@", log: log, type: .info, logFile.path)
+        } catch {
+            os_log("❌ Failed to write complete agent state to file: %@", log: log, type: .error, error.localizedDescription)
+        }
     }
 }
 
