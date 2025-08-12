@@ -53,6 +53,15 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         os_log("Processing user message: %@", log: log, type: .info, message)
         Task {
             do {
+                // Check for commands first
+                let commandResult = try CommandDispatcher.processMessage(message)
+                if commandResult.isCommand {
+                    if let result = commandResult.result {
+                        os_log("Command executed successfully", log: log, type: .info)
+                        self.callbackClient?.onLLMMessage(result)
+                    }
+                    return
+                }
                 
                 var runableConfig: RunnableConfig
                 var final_state: NudgeAgentState?
@@ -107,7 +116,24 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 
             } catch {
                 os_log("Error while sending user message: %@", log: log, type: .error, error.localizedDescription)
-                callbackClient?.onError("Error processing message: \(error.localizedDescription)")
+                
+                // Handle command-related errors with user-friendly messages
+                if let nudgeError = error as? NudgeError {
+                    switch nudgeError {
+                    case .invalidCommandContent(let message):
+                        callbackClient?.onError(message)
+                    case .unsupportedCommand(let command):
+                        callbackClient?.onError("Unsupported command: /\(command)")
+                    case .documentsDirectoryNotFound:
+                        callbackClient?.onError("Unable to access Documents directory for command storage")
+                    case .invalidXMLStructure:
+                        callbackClient?.onError("XML file is corrupted. Please check ~/Documents/Nudge/Nudge.xml")
+                    default:
+                        callbackClient?.onError("Error processing message: \(error.localizedDescription)")
+                    }
+                } else {
+                    callbackClient?.onError("Error processing message: \(error.localizedDescription)")
+                }
             }
         }
     }
