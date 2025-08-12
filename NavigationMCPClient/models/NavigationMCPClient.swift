@@ -53,6 +53,12 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         os_log("Processing user message: %@", log: log, type: .info, message)
         Task {
             do {
+                // Check for memory command first
+                if try bSaveToMemory(message) {
+                    os_log("Memory saved successfully", log: log, type: .info)
+                    self.callbackClient?.onLLMMessage("Memory saved successfully to ~/Documents/Nudge/Nudge.xml")
+                    return
+                }
                 
                 var runableConfig: RunnableConfig
                 var final_state: NudgeAgentState?
@@ -107,7 +113,20 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 
             } catch {
                 os_log("Error while sending user message: %@", log: log, type: .error, error.localizedDescription)
-                callbackClient?.onError("Error processing message: \(error.localizedDescription)")
+                
+                // Handle memory-specific errors with user-friendly messages
+                if let nudgeError = error as? NudgeError {
+                    switch nudgeError {
+                    case .invalidMemoryContent:
+                        callbackClient?.onError("Memory command requires content. Usage: /memory <your content here>")
+                    case .documentsDirectoryNotFound:
+                        callbackClient?.onError("Unable to access Documents directory for memory storage")
+                    default:
+                        callbackClient?.onError("Error processing message: \(error.localizedDescription)")
+                    }
+                } else {
+                    callbackClient?.onError("Error processing message: \(error.localizedDescription)")
+                }
             }
         }
     }
@@ -355,6 +374,99 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
     private func initialiseAgentState() {
         let tools = self.getTools()
         self.nudgeAgent.updateTools(tools)
+    }
+    
+    // This function will parse and check if the message has /memory in it. If it does, it will save the message to memory.
+    private func bSaveToMemory(_ message: String) throws -> Bool {
+        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Check if message starts with /memory (with or without space)
+        guard trimmedMessage.hasPrefix("/memory") else {
+            return false
+        }
+        
+        // Extract the content after "/memory"
+        var content: String
+        if trimmedMessage == "/memory" {
+            // Just "/memory" without any content
+            content = ""
+        } else if trimmedMessage.hasPrefix("/memory ") {
+            // "/memory " with content
+            content = String(trimmedMessage.dropFirst("/memory ".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            // "/memory" followed by non-space character (invalid format)
+            return false
+        }
+        
+        guard !content.isEmpty else {
+            os_log("Empty memory content provided", log: log, type: .error)
+            throw NudgeError.invalidMemoryContent
+        }
+        
+        // Get the Documents/Nudge directory path
+        let fileManager = FileManager.default
+        guard let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            os_log("Could not access Documents directory", log: log, type: .error)
+            throw NudgeError.documentsDirectoryNotFound
+        }
+        
+        let nudgeDirectoryPath = documentsPath.appendingPathComponent("Nudge")
+        let nudgeFilePath = nudgeDirectoryPath.appendingPathComponent("Nudge.xml")
+        
+        // Create Nudge directory if it doesn't exist
+        if !fileManager.fileExists(atPath: nudgeDirectoryPath.path) {
+            try fileManager.createDirectory(at: nudgeDirectoryPath, withIntermediateDirectories: true, attributes: nil)
+            os_log("Created Nudge directory at: %@", log: log, type: .info, nudgeDirectoryPath.path)
+        }
+        
+        // Handle XML file creation and content management
+        var xmlContent: String
+        
+        if fileManager.fileExists(atPath: nudgeFilePath.path) {
+            // Read existing XML file
+            xmlContent = try String(contentsOf: nudgeFilePath, encoding: .utf8)
+            
+            // Check if <things_to_remember> tag exists
+            if let startRange = xmlContent.range(of: "<things_to_remember>"),
+               let endRange = xmlContent.range(of: "</things_to_remember>") {
+                
+                // Extract existing content between tags
+                let existingContent = String(xmlContent[startRange.upperBound..<endRange.lowerBound])
+                let trimmedContent = existingContent.trimmingCharacters(in: .whitespacesAndNewlines)
+                let newItem = trimmedContent.isEmpty ? "\n- \(content)\n" : "\n\(trimmedContent)\n- \(content)\n"
+                
+                // Replace content between tags
+                xmlContent = xmlContent.replacingCharacters(
+                    in: startRange.upperBound..<endRange.lowerBound,
+                    with: newItem
+                )
+            } else {
+                // Add <things_to_remember> section before closing </nudge-memory>
+                let newSection = "<things_to_remember>\n- \(content)\n</things_to_remember>\n"
+                if let insertPoint = xmlContent.range(of: "</nudge-memory>") {
+                    xmlContent = xmlContent.replacingCharacters(
+                        in: insertPoint.lowerBound..<insertPoint.lowerBound,
+                        with: newSection
+                    )
+                }
+            }
+        } else {
+            // Create new XML file
+            xmlContent = """
+<?xml version="1.0" encoding="UTF-8"?>
+<nudge-memory>
+<things_to_remember>
+- \(content)
+</things_to_remember>
+</nudge-memory>
+"""
+            os_log("Creating new Nudge.xml file at: %@", log: log, type: .info, nudgeFilePath.path)
+        }
+        
+        // Write the updated XML content
+        try xmlContent.write(to: nudgeFilePath, atomically: true, encoding: .utf8)
+        os_log("Successfully saved memory entry to Nudge.xml", log: log, type: .info)
+        return true
     }
     
     deinit {
