@@ -27,6 +27,9 @@ public enum NudgeError: Error, Sendable, LocalizedError {
     
     case invalidMemoryContent
     case documentsDirectoryNotFound
+    case invalidXMLStructure
+    case unsupportedCommand(String)
+    case invalidCommandContent(String)
     
     public var errorDescription: String? {
         switch self {
@@ -64,6 +67,12 @@ public enum NudgeError: Error, Sendable, LocalizedError {
             return "Memory content cannot be empty"
         case .documentsDirectoryNotFound:
             return "Could not access Documents directory"
+        case .invalidXMLStructure:
+            return "XML file structure is corrupted"
+        case .unsupportedCommand(let command):
+            return "Unsupported command: /\(command)"
+        case .invalidCommandContent(let message):
+            return message
         }
     }
 }
