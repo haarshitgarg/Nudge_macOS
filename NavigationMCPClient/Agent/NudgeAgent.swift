@@ -126,9 +126,31 @@ struct NudgeAgent {
     }
     
     func get_rag_context(Action: NudgeAgentState) async throws -> PartialAgentState {
-        // TODO: Implement the logic to get rag context
-        os_log("Nothing implemented in rag, will do later", log: log, type: .debug)
-        return ["rag_input":"Make sure when you need to search for videos or creators on youtube, you put the query directly in the URL itself. It makes it much faster than opening the app and then searching it \n\n  When you want to play a vide check if the link in description has watch in it. It generally means this will link will play the video \n\n If you find information that is very specific you can store that information in the clipboard to be used later"]
+        os_log("Building RAG context with user memory", log: log, type: .info)
+        
+        var ragComponents: [String] = []
+        
+        // Try to read user's memory from XML
+        do {
+            let memoryContent = try NudgeXMLManager.readFromXMLTag("things_to_remember")
+            if !memoryContent.isEmpty {
+                ragComponents.append("## User's Memory (Things to Remember)\n\(memoryContent)")
+                os_log("Added user memory to RAG context", log: log, type: .info)
+            }
+            
+            let notesContent = try NudgeXMLManager.readFromXMLTag("notes")
+            if !notesContent.isEmpty {
+                ragComponents.append("## User's Notes\n\(notesContent)")
+                os_log("Added user notes to RAG context", log: log, type: .info)
+            }
+        } catch {
+            os_log("Could not read user memory for RAG context: %@", log: log, type: .debug, error.localizedDescription)
+            // Continue without memory context - not a critical error
+        }
+        
+        let combinedContext = ragComponents.joined(separator: "\n\n")
+        
+        return ["rag_input": combinedContext]
     }
 
     func contact_llm(Action: NudgeAgentState) async throws -> PartialAgentState {
