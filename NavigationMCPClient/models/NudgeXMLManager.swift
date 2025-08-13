@@ -113,6 +113,12 @@ class NudgeXMLManager {
         try writeXMLContent(xmlContent)
     }
     
+    static func appendToXMLTag(_ tag: String, content: [String]) throws {
+        for con in content {
+            try appendToXMLTag(tag, content: con)
+        }
+    }
+    
     /// Reads content from a specific XML tag
     /// - Parameter tag: The XML tag name
     /// - Returns: The content within the tag, or empty string if tag doesn't exist
@@ -141,4 +147,56 @@ class NudgeXMLManager {
     static func addNoteItem(_ content: String) throws {
         try appendToXMLTag("notes", content: "- \(content)")
     }
+    
+    /// Replaces content in a specific XML tag
+    /// - Parameters:
+    ///   - tag: The XML tag name (e.g., "things_to_remember")
+    ///   - content: The content to replace with
+    static func replaceXMLTagContent(_ tag: String, content: String) throws {
+        var xmlContent = try readXMLContent()
+        
+        let openTag = "<\(tag)>"
+        let closeTag = "</\(tag)>"
+        
+        // Check if the tag already exists
+        if let startRange = xmlContent.range(of: openTag),
+           let endRange = xmlContent.range(of: closeTag) {
+            
+            // Replace content between tags
+            let newContent = "\n\(content)\n"
+            xmlContent = xmlContent.replacingCharacters(
+                in: startRange.upperBound..<endRange.lowerBound,
+                with: newContent
+            )
+        } else {
+            // Add new tag section before closing </nudge-memory>
+            let newSection = "\(openTag)\n\(content)\n\(closeTag)\n"
+            if let insertPoint = xmlContent.range(of: "</nudge-memory>") {
+                xmlContent = xmlContent.replacingCharacters(
+                    in: insertPoint.lowerBound..<insertPoint.lowerBound,
+                    with: newSection
+                )
+            } else {
+                throw NudgeError.invalidXMLStructure
+            }
+        }
+        
+        try writeXMLContent(xmlContent)
+    }
+    
+    /// Replaces content in a specific XML tag with an array of strings
+    /// - Parameters:
+    ///   - tag: The XML tag name
+    ///   - content: Array of content strings to replace with
+    static func replaceXMLTagContent(_ tag: String, content: [String]) throws {
+        let joinedContent = content.joined(separator: "\n")
+        try replaceXMLTagContent(tag, content: joinedContent)
+    }
+    
+    /// Convenience method to add all apps and bundleidentifiers to Nudge
+    /// - Paramete content: The apps and bundleidentifiers
+    static func addAppsAndBundleIdentifiers(_ content: [String]) throws {
+        try replaceXMLTagContent("applications", content: content)
+    }
 }
+

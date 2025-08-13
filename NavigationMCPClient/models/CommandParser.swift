@@ -10,6 +10,7 @@ import Foundation
 enum CommandType: String, CaseIterable {
     case memory = "memory"
     case note = "note"
+    case initialise = "init"
     
     var xmlTag: String {
         switch self {
@@ -17,6 +18,8 @@ enum CommandType: String, CaseIterable {
             return "things_to_remember"
         case .note:
             return "notes"
+        case .initialise:
+            return "apps"
         }
     }
 }
@@ -74,6 +77,10 @@ class CommandParser {
             return !command.content.isEmpty
         case .note:
             return !command.content.isEmpty
+        case .initialise:
+            return command.content.isEmpty // Initialise command does not require content
         }
     }
 }
+
+
