@@ -102,4 +102,8 @@ struct NudgeAgentState: AgentState {
         value("tool_id")
     }
     
+    var ask_user: String? {
+        value("ask_user")
+    }
+    
 }
