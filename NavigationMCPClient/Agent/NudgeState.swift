@@ -98,4 +98,8 @@ struct NudgeAgentState: AgentState {
         value("rag_input")
     }
     
+    var tool_id: String? {
+        value("tool_id")
+    }
+    
 }

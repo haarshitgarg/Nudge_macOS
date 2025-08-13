@@ -162,7 +162,11 @@ struct NudgeAgent {
         }
         os_log("Successfully decoded agent thought", log: log, type: .info)
         
-        let user_query: String = Action.todo_list?.getFirst() ?? "No todo found, notify user"
+        let user_query: String = """
+\(Action.user_query ?? "No user query provided"). Use the following todo list which is should help you do the task in a systematic manner.
+\(Action.todo_list?.todo_list.joined(separator: "\n") ?? "No todo list provided. Agent should ask user for more help if required.")
+"""
+        //Action.todo_list?.getFirst() ?? "No todo found, notify user"
         let system_instructions: String = Action.system_instructions ?? "NO INSTRUCTIONS"
         
         let context = try buildContextFromState(Action)
@@ -173,11 +177,19 @@ struct NudgeAgent {
         os_log("===========================", log: agent_log, type: .info)
 
         guard let system_message_to_llm = ChatQuery.ChatCompletionMessageParam(role: .system, content: system_instructions),
-              let developer_message_to_llm = ChatQuery.ChatCompletionMessageParam(role: .developer, content: context),
+              let assistant_message = ChatQuery.ChatCompletionMessageParam(role: .assistant, content: context),
               let user_message_to_llm = ChatQuery.ChatCompletionMessageParam(role: .user, content: user_query)
         else { throw NudgeError.cannotCreateMessageForOpenAI }
         
-        let messages = [system_message_to_llm, developer_message_to_llm, user_message_to_llm]
+        var messages = [system_message_to_llm, assistant_message, user_message_to_llm]
+
+        if let tool_result = Action.tool_call_result,
+           let tool_id = Action.tool_id,
+           let tool_call_result = ChatQuery.ChatCompletionMessageParam(role: .tool, content: tool_result, toolCallId: tool_id)
+        {
+            messages.append(tool_call_result)
+        }
+
         let availableTools = Action.available_tools ?? []
         let llm_query = ChatQuery(messages: messages, model: "gpt-4.1", tools: availableTools)
         
@@ -216,7 +228,9 @@ struct NudgeAgent {
         
         self.serverDelegate?.agentCalledTool(toolName: function_name)
         
-        guard let argumentsData = curr_tool.function.arguments.data(using: .utf8) else {
+        let toolID = curr_tool.id
+        guard let argumentsData = curr_tool.function.arguments.data(using: .utf8)
+        else {
             os_log("Failed to convert arguments to Data", log: log, type: .error)
             self.serverDelegate?.agentFacedError(error: "Arguments for the tool call are not in correct format")
             throw NudgeError.cannotParseToolArguments
@@ -232,6 +246,7 @@ struct NudgeAgent {
                 result = [
                     "tool_call_result": "Called tool get_ui_elemets. It has returned the updated application state which is stored in current_application_state.",
                     "current_application_state": server_response,
+                    "tool_id": toolID,
                     "no_of_iteration": iterations + 1
                 ]
             case "click_element_by_id":
@@ -240,13 +255,16 @@ struct NudgeAgent {
                 if !clickResult.uiTree.isEmpty {
                     let server_response = formatUIElementsToString(uiTree)
                     result = [
-                        "tool_call_result": "Called tool click_element_by_id. \(clickResult.message).",
+                        "tool_call_result": "Called tool click_element_by_id. \(clickResult.message). It also returned the updated UI tree which is stored in current_application_state.",
                         "current_application_state": server_response,
+                        "tool_id": toolID,
                         "no_of_iteration": iterations + 1
                     ]
                 } else {
                     result = [
                         "tool_call_result": "Called tool click_element_by_id. \(clickResult.message)",
+                        "current_application_state": "It is unknown",
+                        "tool_id": toolID,
                         "no_of_iteration": iterations + 1
                     ]
                 }
@@ -261,6 +279,8 @@ struct NudgeAgent {
                 result = [
                     "tool_call_result": "Called tool save_to_clipboard. The clipboard information is stored in clip_content.",
                     "clip_content": clip_info,
+                    "current_application_state": "Unknown",
+                    "tool_id": toolID,
                     "no_of_iteration": iterations + 1
                 ]
             case "set_text_in_element" :
@@ -269,11 +289,21 @@ struct NudgeAgent {
                 result = [
                     "tool_call_result": "Called tool set_text_in_element. Retured with message: \(ui_element_tree.message)",
                     "current_application_state": server_response,
+                    "tool_id": toolID,
                     "no_of_iteration": iterations + 1
+                ]
+            case "user_input":
+                // TODO: Need to implement conditional edge which will go to user_input node when required
+                result = [
+                    "tool_call_result": "Called tool user_input. The agent is waiting for user input.",
+                    "current_application_state": "The agent is waiting for user input",
+                    "tool_id": toolID,
+                    "no_of_iteration": iterations + 1,
                 ]
             default:
                 result = [
                     "tool_call_result": "The tool with name \(function_name) is not implemented or not supported by the server. Please look into the available tools or ask user for more help",
+                    "tool_id": toolID,
                     "no_of_errors": errors + 1,
                     "no_of_iteration": iterations + 1
                 ]
@@ -281,7 +311,9 @@ struct NudgeAgent {
         } catch {
             let errorMessage = "The following error occured while performing the toolcall: \(error.localizedDescription)"
             result = [
+                "tool_call_result": "Failed to perform tool call \(function_name). \(errorMessage)",
                 "current_application_state": errorMessage,
+                "tool_id": toolID,
                 "no_of_errors": errors + 1,
                 "no_of_iteration": iterations + 1
             ]
@@ -388,22 +420,22 @@ struct NudgeAgent {
     // MARK: - Private functions
     
     private mutating func initialiseAgentState() throws {
-        // Load system instructions from SystemInstructions.md
-        if let systemInstructionsPath = Bundle.main.path(forResource: "SystemInstructions", ofType: "md") {
+        // Load system instructions from SystemInstructions.xml
+        if let systemInstructionsPath = Bundle.main.path(forResource: "SystemInstructions", ofType: "xml") {
             let systemInstructions = try String(contentsOfFile: systemInstructionsPath, encoding: .utf8)
             self.state.data["system_instructions"] = systemInstructions
         } else {
-            os_log("SystemInstructions.md not found in bundle", log: log, type: .error)
-            throw NudgeError.agentNotInitialized(description: "SystemInstrcutions.md not found in bundle")
+            os_log("SystemInstructions.xml not found in bundle", log: log, type: .error)
+            throw NudgeError.agentNotInitialized(description: "SystemInstructions.xml not found in bundle")
         }
         
-        // Load rules from Nudge.md
-        if let rulesPath = Bundle.main.path(forResource: "Nudge", ofType: "md") {
+        // Load rules from Nudge.xml
+        if let rulesPath = Bundle.main.path(forResource: "Nudge", ofType: "xml") {
             let rules = try String(contentsOfFile: rulesPath, encoding: .utf8)
             self.state.data["rules"] = rules
         } else {
-            os_log("Nudge.md not found in bundle", log: log, type: .error)
-            throw NudgeError.agentNotInitialized(description: "Nudge.md not found in bundle")
+            os_log("Nudge.xml not found in bundle", log: log, type: .error)
+            throw NudgeError.agentNotInitialized(description: "Nudge.xml not found in bundle")
         }
         
         if let todosPath = Bundle.main.path(forResource: "TodoInstructions", ofType: "md") {
@@ -499,51 +531,27 @@ struct NudgeAgent {
     private func buildContextFromState(_ state: NudgeAgentState) throws -> String {
         var contextComponents: [String] = []
         
-        // Add rules if available
-        if let rules = state.rules, !rules.isEmpty {
-            contextComponents.append("## Navigation Rules\n\(rules)")
-        }
-        
-        // Add knowledge if available
-        if let knowledge = state.knowledge, !knowledge.isEmpty {
-            let knowledgeString = knowledge.joined(separator: "\n- ")
-            contextComponents.append("## System Knowledge\n- \(knowledgeString)")
-        }
-        
         // Add current application UI state if available
         if let currentAppState = state.current_application_state {
-            contextComponents.append("## current_application_state\n\(currentAppState)")
-        }
-        
-        // Add previous agent outcome if available
-        if let message = state.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) {
-            os_log("Decoding agent message from content", log: log, type: .info)
-            let agent_message = try self.jsonDecoder.decode(AgentResponse.self, from: message)
-            os_log("Successfully decoded agent message", log: log, type: .info)
-            if let thought = agent_message.agent_thought {
-                contextComponents.append("## agent_thought\n\(thought)")
-            }
-        }
-        
-        // Add tool call result to the context
-        if let tool_call_result = state.tool_call_result {
-            contextComponents.append("## tool_call_result\n\(tool_call_result)")
+            contextComponents.append("<current_state_of_application>\n Following is the state of the application use is trying to use. It is represented in the form of UI elements. Agent must look the UI elements and based on the user query and TODO list try to achieve the goal as best as it can.\n\(currentAppState)\n</current_state_of_application>")
         }
         
         // Add chat history to the context
         if let chat_history = state.chat_history {
-            contextComponents.append("## chat_history\n")
+            contextComponents.append("<chat_history>\n")
+            contextComponents.append("This is the previous chat history of the agent with the user. Agent MUST use this information to make an informed decision. Agent should use this and try NOT to repeat itself")
             contextComponents.append(contentsOf: chat_history)
+            contextComponents.append("</chat_history>\n")
         }
         
         // Add clipboard content if available
         if let clip_content = state.clip_content {
-            contextComponents.append("## clip_content\nMessage: \(clip_content.message)\nMeta Information: \(clip_content.meta_data)")
+            contextComponents.append("<clip_board_content>\n This is the clip board content that can be used by the Agent if it helps with the user task.\nMessage: \(clip_content.message)\nMeta Information: \(clip_content.meta_data) </clip_board_content>")
         }
         
         // RAG CONTEXT
         if let rag_input = state.rag_input {
-            contextComponents.append("## Use full information about the task\n\(rag_input)")
+            contextComponents.append("<task_specific_context>Agent MUST use this information to make an informed decision. The information here provides the list of applications, user preferences etc.\n\(rag_input)</task_specifig_context>")
         }
         
         // Join all components with double newlines for clear separation
