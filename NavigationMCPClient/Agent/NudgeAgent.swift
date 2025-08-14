@@ -39,8 +39,6 @@ struct NudgeAgent {
     ]
     
     private let saver = MemoryCheckpointSaver()
-
-    
     var serverDelegate: NudgeAgentDelegate?
     
     // Tools
@@ -95,14 +93,28 @@ struct NudgeAgent {
                 ragComponents.append("## User's Memory (Things to Remember)\n\(memoryContent)")
                 os_log("Added user memory to RAG context", log: log, type: .info)
             }
-            
+        } catch {
+            os_log("Could not read user memory for RAG context: %@", log: log, type: .debug, error.localizedDescription)
+        }
+        
+        do {
             let notesContent = try NudgeXMLManager.readFromXMLTag("notes")
             if !notesContent.isEmpty {
                 ragComponents.append("## User's Notes\n\(notesContent)")
                 os_log("Added user notes to RAG context", log: log, type: .info)
             }
         } catch {
-            os_log("Could not read user memory for RAG context: %@", log: log, type: .debug, error.localizedDescription)
+            os_log("Could not read notes for RAG context: %@", log: log, type: .debug, error.localizedDescription)
+        }
+        
+        do {
+            let apps = try NudgeXMLManager.readFromXMLTag("applications")
+            if !apps.isEmpty {
+                ragComponents.append("## All the applications\n\(apps)")
+                os_log("Added applications information to RAG context", log: log, type: .info)
+            }
+        } catch {
+            os_log("Could not read applications for RAG context: %@", log: log, type: .debug, error.localizedDescription)
             // Continue without memory context - not a critical error
         }
         
@@ -121,7 +133,7 @@ struct NudgeAgent {
         os_log("Successfully decoded agent thought", log: log, type: .info)
         
         let user_query: String = """
-User asked the following query: \(Action.user_query ?? "No user query provided"). 
+\(Action.user_query ?? "No user query provided")\n. 
 \(Action.todo_list != nil ? "Use the following todo list which should help you do the task in a systematic manner \(Action.todo_list!.todo_list.joined(separator: "\n -"))" : "No todo list provided. Agent should decide based on the query if it needs to create a todo list or not. REMINDER you have tools to choose from if confused")
 """
         //Action.todo_list?.getFirst() ?? "No todo found, notify user"
@@ -140,6 +152,7 @@ User asked the following query: \(Action.user_query ?? "No user query provided")
         else { throw NudgeError.cannotCreateMessageForOpenAI }
         
         var messages = [system_message_to_llm, assistant_message, user_message_to_llm]
+        var agent_convo: [ChatQuery.ChatCompletionMessageParam] = Action.assistant_vi_response ?? []
 
         if let tool_result = Action.tool_call_result,
            let tool_id = Action.tool_id,
@@ -147,9 +160,11 @@ User asked the following query: \(Action.user_query ?? "No user query provided")
            let tool_call = Action.agent_outcome?.last?.choices.first?.message.toolCalls?.first,
            let assistant_message = ChatQuery.ChatCompletionMessageParam(role: .assistant, toolCalls: [tool_call])
         {
-            messages.append(assistant_message)
-            messages.append(tool_call_result)
+            agent_convo.append(assistant_message)
+            agent_convo.append(tool_call_result)
         }
+        
+        messages.append(contentsOf: agent_convo)
 
         let availableTools = Action.available_tools ?? []
         let llm_query = ChatQuery(messages: messages, model: "gpt-4.1", tools: availableTools)
@@ -159,7 +174,10 @@ User asked the following query: \(Action.user_query ?? "No user query provided")
         // Log complete agent state at end of contact_llm
         logCompleteAgentState(Action)
         
-        return ["agent_outcome": result]
+        return [
+            "agent_outcome": result,
+            "assistant_vi_response": agent_convo
+        ]
     }
     
     func tool_call(Action: NudgeAgentState) async throws -> PartialAgentState {
@@ -219,7 +237,7 @@ User asked the following query: \(Action.user_query ?? "No user query provided")
                 } else {
                     result = [
                         "tool_call_result": "Called tool click_element_by_id. \(clickResult.message)",
-                        "current_application_state": "It is unknown",
+                        "current_application_state": "Unknown",
                         "tool_id": toolID,
                         "no_of_iteration": iterations + 1
                     ]
@@ -302,8 +320,7 @@ User asked the following query: \(Action.user_query ?? "No user query provided")
     
     func user_input(Action: NudgeAgentState) async throws -> PartialAgentState {
         os_log("Asking user for the input", log: log, type: .info)
-        guard let agent_outcome = Action.agent_outcome,
-              let message = agent_outcome.last?.choices.first?.message.content?.data(using: .utf8),
+        guard let ask_user = Action.ask_user,
               let userResponse = Action.temp_user_response
         else {
             self.serverDelegate?.agentFacedError(error: "Having trouble understanding the current state...")
@@ -311,11 +328,10 @@ User asked the following query: \(Action.user_query ?? "No user query provided")
         }
         
         os_log("Decoding agent response from message", log: log, type: .info)
-        let response: AgentResponse = try self.jsonDecoder.decode(AgentResponse.self, from: message)
         return  [
             "current_application_state": "Unknown",
             "ask_user": "NONE",
-            "chat_history": ["agent: \(response.ask_user ?? "No question asked")", "user: \(userResponse)"]
+            "chat_history": ["agent: \(ask_user)", "user: \(userResponse)"]
         ]
     }
     
@@ -342,6 +358,8 @@ User asked the following query: \(Action.user_query ?? "No user query provided")
         if response == "finished" {
             return "finish"
         }
+        
+        self.serverDelegate?.agentRespondedWithThought(thought: response)
         
         return "llm_node"
     }
@@ -463,7 +481,9 @@ User asked the following query: \(Action.user_query ?? "No user query provided")
         
         // Add current application UI state if available
         if let currentAppState = state.current_application_state {
-            contextComponents.append("<current_state_of_application>\n Following is the state of the application use is trying to use. It is represented in the form of UI elements. Agent must look the UI elements and based on the user query and TODO list try to achieve the goal as best as it can.\n\(currentAppState)\n</current_state_of_application>")
+            if currentAppState != "Unknown" {
+                contextComponents.append("<current_state_of_application>\n Following is the state of the application use is trying to use. It is represented in the form of UI elements. Agent must look the UI elements and based on the user query and TODO list try to achieve the goal as best as it can.\n\(currentAppState)\n</current_state_of_application>")
+            }
         }
         
         // Add chat history to the context
@@ -514,7 +534,7 @@ User asked the following query: \(Action.user_query ?? "No user query provided")
     }
     
     func make_todo_list(Action: NudgeAgentState, thought: String) async throws -> [String] {
-        guard let systemInstructions = state.todos_instructions, let user_query = Action.user_query
+        guard let systemInstructions = state.todos_instructions
         else { throw NudgeError.agentStateVarMissing(description: "The todos_instructions/user_query variable is missing") }
         
         let message = "This is my current todo list: \n\(Action.todo_list?.todo_list.joined(separator: "\n") ?? "No todo list available.")\n\n. Based on: \(thought), please update the todo list"

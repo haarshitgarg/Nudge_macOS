@@ -222,7 +222,7 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                     description: "The current thought process of the agent. Whatever agent things has happened till now",
                     required: true
                 )])
-
+        
         navClientInfo.mcp_tools = await NudgeLibrary.shared.getNavTools()
         do { try getNavTools(client: &navClientInfo)}
         catch {os_log("Error in navclient", log: log, type: .error)}

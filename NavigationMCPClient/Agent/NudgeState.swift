@@ -106,4 +106,8 @@ struct NudgeAgentState: AgentState {
         value("ask_user")
     }
     
+    var assistant_vi_response: [ChatQuery.ChatCompletionMessageParam]? {
+        value("assistant_vi_response")
+    }
+    
 }
