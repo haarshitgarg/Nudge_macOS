@@ -6,7 +6,13 @@ A sophisticated AI-powered navigation assistant that guides users through macOS 
 I am using the mcp server I wrote to power this agent
 Link: https://github.com/haarshitgarg/Nudge-Server
 
-[![Watch the demo](https://img.youtube.com/vi/F6bio6s9JWs/0.jpg)](https://youtu.be/F6bio6s9JWs)
+## DEMO
+
+![Watch the demo](demos/New_dummy_issue.gif)
+
+### Check out the videos posted on my twitter showcasing other things this agent can do
+- [Adding a Button to the swift view](https://x.com/i/status/1944845702758330568)
+- [Creating a post on twitter](https://x.com/i/status/1941539581905826112)
 
 ## Features
 
