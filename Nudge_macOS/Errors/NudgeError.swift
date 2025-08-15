@@ -25,6 +25,12 @@ public enum NudgeError: Error, Sendable, LocalizedError {
     case noRunnableConfigFound
     case noAgentResponseFound
     
+    case invalidMemoryContent
+    case documentsDirectoryNotFound
+    case invalidXMLStructure
+    case unsupportedCommand(String)
+    case invalidCommandContent(String)
+    
     public var errorDescription: String? {
         switch self {
         case .connectionFailed:
@@ -57,6 +63,16 @@ public enum NudgeError: Error, Sendable, LocalizedError {
             return "No runnable configuration found for the agent"
         case .noAgentResponseFound:
             return "No response found from the agent"
+        case .invalidMemoryContent:
+            return "Memory content cannot be empty"
+        case .documentsDirectoryNotFound:
+            return "Could not access Documents directory"
+        case .invalidXMLStructure:
+            return "XML file structure is corrupted"
+        case .unsupportedCommand(let command):
+            return "Unsupported command: /\(command)"
+        case .invalidCommandContent(let message):
+            return message
         }
     }
 }

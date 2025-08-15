@@ -47,14 +47,22 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         try! self.nudgeAgent.defineWorkFlow()
         os_log("✅ Workflow compilation completed successfully", log: log, type: .info)
         
+        
     }
     
     @objc func sendUserMessage(_ message: String, threadId: String = "default") {
         os_log("Processing user message: %@", log: log, type: .info, message)
         Task {
             do {
-                self.callbackClient?.onLLMLoopStarted()
-                sleep(1)
+                // Check for commands first
+                let commandResult = try CommandDispatcher.processMessage(message)
+                if commandResult.isCommand {
+                    if let result = commandResult.result {
+                        os_log("Command executed successfully", log: log, type: .info)
+                        self.callbackClient?.onLLMMessage(result)
+                    }
+                    return
+                }
                 
                 var runableConfig: RunnableConfig
                 var final_state: NudgeAgentState?
@@ -66,6 +74,17 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                     configs[threadId] = runableConfig
                 }
                 
+                // Check for debug command before processing
+                if message.hasPrefix("__DEBUG_DUMP_STATE_FOR_TEST__") {
+                    let testID = String(message.dropFirst("__DEBUG_DUMP_STATE_FOR_TEST__".count))
+                    os_log("🔍 Debug command received for test: %@", log: log, type: .info, testID)
+                    try self.nudgeAgent.writeCompleteAgentStateToFile(testID: testID, reason: "Debug dump requested by UI test", config: runableConfig)
+                    return
+                }
+                
+                self.callbackClient?.onLLMLoopStarted()
+                sleep(1)
+
                 self.nudgeAgent.state.data["user_query"] = message
                 let initVal: ( lastState: NudgeAgentState?, nodes: [String]) = (nil, [])
                 let result = try await self.nudgeAgent.agent?.stream(.args(self.nudgeAgent.state.data), config: runableConfig).reduce(initVal, { partialResult, output in
@@ -74,31 +93,34 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 
                 final_state = result?.lastState
                 
-                os_log("Agent execution completed - iterations: %d, errors: %d", log: log, type: .info, final_state?.no_of_iteration ?? 0, final_state?.no_of_errors ?? 0)
-                guard let agent_response = final_state?.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) else {
-                    os_log("No agent response found in final state", log: log, type: .error)
-                    throw NudgeError.noAgentResponseFound
-                }
-                let message: AgentResponse = try JSONDecoder().decode(AgentResponse.self, from: agent_response)
-                
-                if message.ask_user != nil {
+                if final_state?.ask_user != "NONE" {
                     os_log("Agent requesting user input", log: log, type: .info)
-                    self.callbackClient?.onUserMessage(message.ask_user!)
+                    self.callbackClient?.onUserMessage(final_state!.ask_user!)
                 }
-                
-                else if message.finished != nil {
+                else {
                     os_log("Agent task completed", log: log, type: .info)
                     self.callbackClient?.onLLMLoopFinished()
                 }
-                
-                else if message.agent_thought != nil {
-                    self.callbackClient?.onLLMLoopFinished()
-                }
-
-                
             } catch {
                 os_log("Error while sending user message: %@", log: log, type: .error, error.localizedDescription)
-                callbackClient?.onError("Error processing message: \(error.localizedDescription)")
+                
+                // Handle command-related errors with user-friendly messages
+                if let nudgeError = error as? NudgeError {
+                    switch nudgeError {
+                    case .invalidCommandContent(let message):
+                        callbackClient?.onError(message)
+                    case .unsupportedCommand(let command):
+                        callbackClient?.onError("Unsupported command: /\(command)")
+                    case .documentsDirectoryNotFound:
+                        callbackClient?.onError("Unable to access Documents directory for command storage")
+                    case .invalidXMLStructure:
+                        callbackClient?.onError("XML file is corrupted. Please check ~/Documents/Nudge/Nudge.xml")
+                    default:
+                        callbackClient?.onError("Error processing message: \(error.localizedDescription)")
+                    }
+                } else {
+                    callbackClient?.onError("Error processing message: \(error.localizedDescription)")
+                }
             }
         }
     }
@@ -135,27 +157,14 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
                 
                 final_state = result?.lastState
                 
-                guard let agent_response = final_state?.agent_outcome?.last?.choices.first?.message.content?.data(using: .utf8) else {
-                    os_log("No agent response found in final state", log: log, type: .error)
-                    throw NudgeError.noAgentResponseFound
-                }
-                let message: AgentResponse = try JSONDecoder().decode(AgentResponse.self, from: agent_response)
-                
-                if message.ask_user != nil {
+                if final_state?.ask_user != "NONE" {
                     os_log("Agent requesting user input", log: log, type: .info)
-                    self.callbackClient?.onUserMessage(message.ask_user!)
+                    self.callbackClient?.onUserMessage(final_state!.ask_user!)
                 }
-                
-                else if message.finished != nil {
+                else {
                     os_log("Agent task completed", log: log, type: .info)
                     self.callbackClient?.onLLMLoopFinished()
                 }
-                
-                else if message.agent_thought != nil {
-                    self.callbackClient?.onLLMLoopFinished()
-                }
-
-                
             } catch {
                 os_log("Error while sending user response: %@", log: log, type: .error, error.localizedDescription)
                 callbackClient?.onError("Error processing response from user: \(error.localizedDescription)")
@@ -200,6 +209,19 @@ class NavigationMCPClient: NSObject, NavigationMCPClientProtocol {
         // This is just a dummy server will not be required
         let navServer = MCPServer(name: "NavServer")
         var navClientInfo = ClientInfo()
+        
+        
+        // Adding tools to NudgeLibrary
+        await NudgeLibrary.shared.addTool(
+            name: "todo_list_tool",
+            description: "Use this tool to update or create the todo list. The agent can use this tool to break down the task into smaller tasks",
+            parameters: [
+                ToolParameters(
+                    name: "agent_thought",
+                    type: "string",
+                    description: "The current thought process of the agent. Whatever agent things has happened till now",
+                    required: true
+                )])
         
         navClientInfo.mcp_tools = await NudgeLibrary.shared.getNavTools()
         do { try getNavTools(client: &navClientInfo)}

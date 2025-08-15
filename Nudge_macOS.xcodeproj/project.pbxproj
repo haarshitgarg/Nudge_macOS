@@ -782,7 +782,7 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/haarshitgarg/LangGraph-Swift-fork";
 			requirement = {
-				branch = main;
+				branch = adding_debug_feat_to_get_state;
 				kind = branch;
 			};
 		};
@@ -790,7 +790,7 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/haarshitgarg/Nudge-Server";
 			requirement = {
-				branch = delete_update_ui_tool;
+				branch = main;
 				kind = branch;
 			};
 		};

@@ -25,7 +25,7 @@ struct NudgeAgentState: AgentState {
         self.data = initState
     }
     
-    var todo_list: [String]? {
+    var todo_list: TodoList? {
         value("todo_list")
     }
     
@@ -88,6 +88,26 @@ struct NudgeAgentState: AgentState {
     
     var clip_content: ClipboardContent? {
         value("clip_content")
+    }
+    
+    var todos_instructions: String? {
+        value("todos_instructions")
+    }
+    
+    var rag_input: String? {
+        value("rag_input")
+    }
+    
+    var tool_id: String? {
+        value("tool_id")
+    }
+    
+    var ask_user: String? {
+        value("ask_user")
+    }
+    
+    var assistant_vi_response: [ChatQuery.ChatCompletionMessageParam]? {
+        value("assistant_vi_response")
     }
     
 }
