@@ -98,4 +98,16 @@ struct NudgeAgentState: AgentState {
         value("rag_input")
     }
     
+    var tool_id: String? {
+        value("tool_id")
+    }
+    
+    var ask_user: String? {
+        value("ask_user")
+    }
+    
+    var assistant_vi_response: [ChatQuery.ChatCompletionMessageParam]? {
+        value("assistant_vi_response")
+    }
+    
 }

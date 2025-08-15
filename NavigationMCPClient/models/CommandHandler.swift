@@ -42,6 +42,41 @@ class NoteCommandHandler: CommandHandlerProtocol {
     }
 }
 
+/// Handler for initialise command (/init)
+class InitCommandHandler: CommandHandlerProtocol {
+    private let log = OSLog(subsystem: "Harshit.Nudge", category: "InitCommandHandler")
+    
+    func getAllInstalledBundleIdentifiers() -> [String] {
+        var bundleIdentifiers: [String] = []
+        
+        let fileManager = FileManager.default
+        let appDirectories = [
+            "/Applications",
+            "\(NSHomeDirectory())/Applications"
+        ]
+        
+        for dir in appDirectories {
+            guard let apps = try? fileManager.contentsOfDirectory(atPath: dir) else { continue }
+            
+            for appName in apps where appName.hasSuffix(".app") {
+                let appPath = "\(dir)/\(appName)"
+                if let bundle = Bundle(path: appPath),
+                   let identifier = bundle.bundleIdentifier {
+                    bundleIdentifiers.append("\(appName) - bundle identifier: \(identifier)")
+                }
+            }
+        }
+        
+        return bundleIdentifiers
+    }
+    
+    func execute(content: String) throws -> String {
+        try NudgeXMLManager.addAppsAndBundleIdentifiers(getAllInstalledBundleIdentifiers())
+        return "Initialized successfully. Nudge is ready to use."
+    }
+}
+
+
 /// Central dispatcher for handling parsed commands
 class CommandDispatcher {
     private static let log = OSLog(subsystem: "Harshit.Nudge", category: "CommandDispatcher")
@@ -49,7 +84,8 @@ class CommandDispatcher {
     /// Map of command types to their handlers
     private static let handlers: [CommandType: CommandHandlerProtocol] = [
         .memory: MemoryCommandHandler(),
-        .note: NoteCommandHandler()
+        .note: NoteCommandHandler(),
+        .initialise: InitCommandHandler()
     ]
     
     /// Handles a parsed command by delegating to the appropriate handler
@@ -98,6 +134,8 @@ class CommandDispatcher {
             return "Memory command requires content. Usage: /memory <your content here>"
         case .note:
             return "Note command requires content. Usage: /note <your note here>"
+        case .initialise:
+            return "Initialise command does not require content. Usage: /init"
         }
     }
 }
